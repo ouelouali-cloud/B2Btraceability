@@ -1,0 +1,11 @@
+{
+  "name": "threadback",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chain-of-custody and mass-balance ledger for recycled-cotton garments, from cutting waste to EU claim.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test test/*.test.js"
+  }
+}
