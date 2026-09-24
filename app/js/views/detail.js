@@ -2,7 +2,8 @@
 
 import { TIERS, MATERIALS, PROCESS_TYPES, DOC_TYPES, RULES, requiredDocs } from '../engine/rules.js';
 import { org, lot, transfer, kgOf, pctDiff, transferKgIn } from '../engine/db.js';
-import { checkTransfer, checkProcess, checkOrigin, processBalance, consumedByTransfer, ORIGIN_FIELDS } from '../engine/checks.js';
+import { checkTransfer, checkProcess, checkOrigin, processBalance, consumedByTransfer, originMissing, namedSources, sourcedKg, collectionPeriod } from '../engine/checks.js';
+import { productThumb } from './product.js';
 import { completeness } from '../engine/trace.js';
 import { lotRemaining } from '../engine/ledger.js';
 import { esc, num, date, pill, tierIcon, icon, btn, bar, countPills } from '../ui.js';
@@ -130,20 +131,27 @@ export function lotView(db, id) {
   const out = db.transfers.filter((t) => t.lotId === l.id);
   const mine = actingAs() === o.id;
 
-  const originBlock = origin ? `<section class="section">
-    <div class="section-head"><h2>Reclaimed material declaration</h2>${mine ? btn('Complete declaration', 'form', { form: 'origin', lot: l.id }, 'btn-primary btn-small') : ''}</div>
-    <p class="muted">The first certified tier (the recycler) must hold this for every lot of waste it buys. It is where most chains lose their evidence.</p>
+  const originBlock = origin ? (() => {
+    const d = origin.declaration || {};
+    const [from, to] = collectionPeriod(l);
+    const src = namedSources(l);
+    const missing = originMissing(l);
+    return `<section class="section">
+    <div class="section-head"><h2>Reclaimed material declaration</h2>
+      <a class="btn btn-small ${mine ? 'btn-primary' : ''}" href="#declare.${esc(l.id)}">${mine ? (missing.length ? 'Continue declaration' : 'Open declaration') : 'View declaration'}</a></div>
+    <p class="muted">The recycler, as the first certified tier, must hold this for every batch of waste it buys. Most chains lose their evidence here.</p>
     <dl class="kv">
-      ${ORIGIN_FIELDS.map(([k, label]) => {
-        let v;
-        if (k === 'sources') v = (origin.sources || []).filter((s) => s.name).map((s) => `${esc(s.name)} <span class="muted">(${esc(s.kind || 'source')}${s.city ? ', ' + esc(s.city) : ''})</span>`).join('<br>');
-        else if (k === 'recycledType') v = esc(l.recycledType);
-        else if (k === 'rmdSigned') v = origin.rmdSigned ? 'Yes' : '';
-        else if (k.startsWith('collection')) v = origin[k] ? date(origin[k]) : '';
-        else v = esc(origin[k]);
-        return `<div class="${v ? '' : 'kv-missing'}"><dt>${esc(label)}</dt><dd>${v || 'Missing'}</dd></div>`;
-      }).join('')}
-    </dl></section>` : '';
+      <div class="${origin.slipNumber ? '' : 'kv-missing'}"><dt>Weighbridge slip</dt><dd>${esc(origin.slipNumber || 'Missing')}${origin.bags ? ` · ${num(origin.bags)} bags` : ''}</dd></div>
+      <div class="${from ? '' : 'kv-missing'}"><dt>Collected</dt><dd>${from ? `${date(from)} to ${date(to)}` : 'Missing'}</dd></div>
+      <div class="${origin.colourSort && origin.fibre ? '' : 'kv-missing'}"><dt>Sort</dt><dd>${esc([origin.colourSort, origin.fibre, l.recycledType].filter(Boolean).join(' · ') || 'Missing')}</dd></div>
+      <div class="${origin.contamination?.noElastane && origin.contamination?.noPrint ? '' : 'kv-missing'}"><dt>Contamination check</dt><dd>${origin.contamination?.noElastane ? 'No elastane' : 'Elastane not checked'} · ${origin.contamination?.noPrint ? 'No prints' : 'Prints not checked'}</dd></div>
+      <div class="${d.signedOn ? '' : 'kv-missing'}"><dt>Signed</dt><dd>${d.signedOn ? `${esc(d.signer)} on ${date(d.signedOn)} · <span class="mono">${esc(d.number)}</span>` : 'Not signed'}</dd></div>
+    </dl>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Source factory</th><th>Type</th><th>Collected</th><th class="num">kg</th></tr></thead>
+      <tbody>${src.map((s) => `<tr><td>${esc(s.name)}<div class="muted small">${esc(s.city || '')}</div></td><td>${esc(s.kind || '')}</td><td class="nowrap ${s.collectedOn ? '' : 'cell-bad'}">${s.collectedOn ? date(s.collectedOn) : 'Missing'}</td><td class="num">${num(s.kg)}</td></tr>`).join('')}
+      <tr class="row-total"><td colspan="3">Traced to a factory</td><td class="num ${Math.abs(sourcedKg(l) - l.qty) / (l.qty || 1) > 0.02 ? 'cell-bad' : ''}">${num(sourcedKg(l))} / ${num(l.qty)}</td></tr></tbody></table></div>
+    </section>`;
+  })() : '';
 
   return `
     ${backLink(isTenant() ? '#chain' : '#tasks', isTenant() ? 'Chain' : 'My tasks')}
@@ -154,6 +162,7 @@ export function lotView(db, id) {
       <div>${countPills(checks)}</div>
     </header>
     ${originBlock}
+    ${l.product ? `<a class="product-strip" href="#product.${esc(l.id)}">${productThumb(l)}<span><strong>${esc(l.product.name)}</strong><span class="muted small">Product sheet: photo, bill of materials, sizes, hang tag</span></span></a>` : ''}
     ${l.producedBy ? `<p><a class="link" href="#process.${esc(l.producedBy)}">Produced in ${esc(l.producedBy)} →</a></p>` : ''}
     <section class="section"><div class="section-head"><h2>Checks</h2></div>${checks.length ? checkList(db, checks) : '<p class="empty">No checks for this lot.</p>'}</section>
     <section class="section"><div class="section-head"><h2>Shipped from this lot</h2></div>

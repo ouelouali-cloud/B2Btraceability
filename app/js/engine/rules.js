@@ -30,6 +30,15 @@ export const PROCESS_TYPES = {
   cut_sew:         { label: 'Cutting & sewing',    tier: 'garment',  yield: [75, 92] },
 };
 
+// Only one standard in this prototype.
+export const STANDARD = 'GRS';
+
+// What a waste source can declare. Mechanical recycling of cotton needs clean,
+// sorted, elastane-free waste, so the sort matters as much as the source.
+export const WASTE_KINDS = ['Cutting waste', 'Sewing and sample waste', 'Fabric roll ends'];
+export const COLOUR_SORTS = ['White / ecru', 'Light colours', 'Dark colours', 'Mixed colours'];
+export const FIBRE_SORTS = ['100% cotton', 'Cotton-rich, 95% or more', 'Blend, under 95% cotton'];
+
 export const DOC_TYPES = {
   PO:      { label: 'Purchase order',        short: 'PO',   fields: ['qty', 'recycledPct', 'parties', 'date'] },
   INVOICE: { label: 'Invoice',               short: 'Inv.', fields: ['qty', 'parties', 'date'] },
@@ -41,7 +50,8 @@ export const RULES = {
   qtyTolerancePct: 2,          // TC vs invoice vs packing list vs received
   compositionTolerancePts: 0.5, // recycled % points
   docWindowDays: 45,           // commercial docs should sit close to the shipment date
-  minClaimPct: 20,             // GRS minimum recycled content for a product claim
+  minClaimPct: 20,             // GRS: minimum recycled content for a certified product claim
+  grsLogoMinPct: 50,           // GRS: minimum recycled content to carry the GRS logo on product
   scExpiryWarnDays: 60,
 };
 

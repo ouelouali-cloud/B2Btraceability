@@ -20,7 +20,7 @@ export function checkActions(db, c) {
 
 export function fixButton(c) {
   const s = c.subject;
-  if (c.id === 'origin') return btn('Complete declaration', 'form', { form: 'origin', lot: s }, 'btn-small btn-primary');
+  if (c.group === 'origin') return `<a class="btn btn-small btn-primary" href="#declare.${esc(s)}">Complete declaration</a>`;
   if (['consumption', 'blend', 'yield', 'records', 'inputs'].includes(c.id)) return btn('Correct production record', 'form', { form: 'process', process: s }, 'btn-small btn-primary');
   if (['sc', 'scope'].includes(c.id)) return btn('Update certificate', 'form', { form: 'certificate', org: c.owner }, 'btn-small btn-primary');
   if (c.group === 'claim') return '';

@@ -4,7 +4,7 @@
 import { seed } from './seed.js';
 import { syncGaps } from './engine/trace.js';
 
-const KEY = 'threadback.v1';
+const KEY = 'threadback.v2';
 const listeners = new Set();
 let state = null;
 
@@ -18,7 +18,7 @@ export function load() {
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed.version === 1) state = parsed;
+      if (parsed.version === 2) state = parsed;
     } catch { /* fall through to seed */ }
   }
   if (!state) state = seed();

@@ -11,7 +11,7 @@ Everything is one plain JSON object (`app/js/seed.js`). It maps one-to-one to re
 | Entity | Key fields | Notes |
 |---|---|---|
 | `org` | tier, country, status (`invited`/`active`), invitedBy, suppliesTo, `sc` {number, standard, body, validFrom, validTo, scope[]} | Scope certificate is embedded; one per org for now |
-| `lot` | orgId, material, qty, unit (`kg`/`pcs`), kgPerUnit, recycledPct, recycledType, producedBy, `origin` | `origin` only on waste lots (the reclaimed material declaration) |
+| `lot` | orgId, material, qty, unit (`kg`/`pcs`), kgPerUnit, fibreKgPerUnit, recycledPct, recycledType, producedBy, `origin`, `product` | `origin` only on waste lots: slip number and photo, bags, sources[{name, kind, city, kg, collectedOn}], colour and fibre sort, contamination checks, declaration {signer, role, signature, paperPhoto, signedOn, number}. `product` only on garment lots: spec, sizes, BOM, colourway, photo |
 | `transfer` | fromOrg, toOrg, lotId, date, qty, receivedQty, `tc`, `docs` {PO, INVOICE, PACKING, BL} | The handoff. Each document stores the values *as printed* so they can be cross-checked |
 | `process` | orgId, type, inputs[{transferId, kg}], nonClaimed[{material, kg}], outputLotId, consumption, records[] | Inputs point at receipts, so over-consumption is detectable |
 | `claim` | lotId, buyer, pcs, recycledPct, text | The outgoing recycled content claim |
@@ -23,7 +23,8 @@ Checks are **never stored**. They are recomputed from the data on every change, 
 
 | Group | Check | Rule | Owner if failing |
 |---|---|---|---|
-| Origin | Reclaimed material declaration | Sources, collection period, pre/post-consumer, sort, declaration number, signed | Waste source |
+| Origin | Reclaimed material declaration | Slip number, sources with kg and date, colour and fibre sort, no elastane or prints, pre/post-consumer, signed | Waste source |
+| Origin | Every kg traced to a factory | Sum of source kg = batch weight, ±2% | Waste source |
 | Verify | Transaction certificate | Present for certified tiers, not dated before shipment | Seller |
 | Verify | Scope certificate valid | SC covers the shipment date | Seller |
 | Verify | Product in scope | Lot material listed on SC | Seller |
@@ -36,14 +37,14 @@ Checks are **never stored**. They are recomputed from the data on every change, 
 | Reconcile | Yield plausible | Within range per process type (warning) | Processor |
 | Reconcile | Recycled % supported | Declared output % ≤ recycled kg in / total kg in | Processor |
 | Reconcile | Fabric consumption | pcs × kg/pc (marker) ≤ fabric kg used | Garment maker |
-| Claim | Pieces available, composition, ≥20% minimum, ledger credit, upstream chain all green | | Garment maker |
+| Claim | Pieces available, composition, ≥20% minimum, ledger credit, upstream chain all green | Credit counts fibre weight only (trims excluded) | Garment maker |
 
 All tolerances live in `app/js/engine/rules.js`.
 
 ## Recommendations beyond the brief
 
 1. **Sell to the garment maker, and let each tier invite the next.** The manufacturer usually doesn't know who the recycler is, and the spinner won't reveal it to them. Cascading invitations follow the existing commercial relationships. Each supplier sees only its direct buyer and seller. The manufacturer sees the chain, never prices.
-2. **Treat the waste source as a first-class tier even though it is uncertified.** GRS doesn't certify jhut traders, which is exactly why the data is weakest there. Give them a phone-friendly form: a photo of the weighbridge slip, a list of source factories, a signature. That form should be the most polished screen in the product.
+2. **Treat the waste source as a first-class tier even though it is uncertified.** GRS doesn't certify jhut traders, which is exactly why the data is weakest there. The prototype gives them a four-step phone form with Bangla labels, photo capture, and a finger signature. Changing any figure after signing clears the signature, so a signed declaration always matches the data.
 3. **Store documents as values, not just as files.** A PDF is proof; the numbers on it are what reconcile. Capture the values (later by OCR on the upload) so checks can run.
 4. **Make gaps self-closing.** People don't click "resolve". A gap tied to a check closes itself when the data is fixed, and it leaves an audit trail an auditor can read.
 5. **Keep units honest.** Record gross versus net weight, moisture, and cones explicitly. In the demo, the T3 gap is a gross-weight packing list, which is the most common false alarm in yarn.
@@ -61,5 +62,6 @@ All tolerances live in `app/js/engine/rules.js`.
 ## Open questions for you
 
 - Who pays? Manufacturer seat licence, or per claim/audit pack?
-- GRS only, or RCS too (lower threshold, 5%+)? The rules file supports both, but the claim wording differs.
-- Knit only (sold by kg) or woven too (sold by metre)? Woven adds a width × GSM conversion at the mill.
+- Decided: GRS only; knitted fabric only for now.
+- Should the waste trader's form also work offline (godowns often have poor signal) and sync later?
+- Should the recycler countersign each declaration on receipt, to confirm the weight matches its weighbridge?

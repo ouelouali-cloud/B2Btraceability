@@ -45,9 +45,10 @@ test('garment ledger: credit follows fabric in, production, then claim', () => {
   const led = ledger(db, 'sonar');
   // 2,590 kg fabric × 40% = 1,036 kg recycled in
   assert.equal(Math.round(led.rows.find((r) => r.kind === 'received').input), 1036);
-  // 14,000 × 0.165 kg × 40% = 924 kg credited on output; claim 12,000 pcs = 792 kg
-  assert.equal(Math.round(led.rows.find((r) => r.kind === 'produced').credit), 924);
-  assert.equal(Math.round(led.credit), 132);
+  // Only fibre carries the claim: 14,000 × 0.158 kg × 40% = 885 kg credited
+  // (thread and labels excluded); claim 12,000 pcs = 758 kg
+  assert.equal(Math.round(led.rows.find((r) => r.kind === 'produced').credit), 885);
+  assert.equal(Math.round(led.credit), 126);
   assert.equal(led.firstNegative, null);
 });
 
@@ -62,9 +63,7 @@ test('over-claiming drives the account negative and holds the claim', () => {
 test('fixing the data closes gaps and releases the claim', () => {
   const db = seed();
   db.gaps.push({ id: 'G2', key: 'T3:quantity', owner: 'spin', status: 'open', thread: [] });
-  Object.assign(l(db, 'L-W1').origin, {
-    collectionFrom: '2026-06-14', collectionTo: '2026-06-28', rmdNumber: 'RMD-RJT-0626', rmdSigned: true,
-  });
+  completeWasteDeclaration(db);
   t(db, 'T3').docs.PACKING.qty = 3000;
   l(db, 'L-G1').qty = 13500;
   const closed = syncGaps(db, '2026-09-24');
@@ -72,6 +71,27 @@ test('fixing the data closes gaps and releases the claim', () => {
   const s = claimStatus(db, db.claims[0]);
   assert.equal(s.status, 'ready');
   assert.equal(s.warn, true); // T2 invoice name variant still to tidy
+});
+
+function completeWasteDeclaration(db) {
+  const o = l(db, 'L-W1').origin;
+  o.sources[1].collectedOn = '2026-06-22';
+  o.sources.push({ name: 'Siddhirganj Knitwear', kind: 'Cutting waste', city: 'Narayanganj', kg: 1200, collectedOn: '2026-06-27' });
+  o.contamination.noPrint = true;
+  Object.assign(o.declaration, { signer: 'Abdur Rahman', role: 'Owner', signature: 'data:image/png;base64,x', signedOn: '2026-09-24', number: 'RMD-RJT-2609-W1' });
+}
+
+test('waste origin: source weights must add up to the batch', () => {
+  const db = seed();
+  const src = byId(checkOrigin(db, l(db, 'L-W1')), 'sources');
+  assert.equal(src.status, 'fail');
+  assert.match(src.detail, /4,000 of 5,200 kg/);
+  completeWasteDeclaration(db);
+  assert.equal(byId(checkOrigin(db, l(db, 'L-W1')), 'sources').status, 'pass');
+  assert.equal(byId(checkOrigin(db, l(db, 'L-W1')), 'origin').status, 'pass');
+  // A signed declaration still fails if a factory's weight goes missing
+  l(db, 'L-W1').origin.sources[2].kg = 0;
+  assert.equal(byId(checkOrigin(db, l(db, 'L-W1')), 'origin').status, 'fail');
 });
 
 test('expired scope certificate fails the handoff', () => {

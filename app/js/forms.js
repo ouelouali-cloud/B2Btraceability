@@ -1,7 +1,7 @@
 // Every data-entry form. Each entry has `render(db, params)` → { title, intro, body }
 // and `submit(db, values, params)` which mutates db (called inside store.mutate).
 
-import { TIERS, MATERIALS, PROCESS_TYPES, DOC_TYPES, requiredDocs } from './engine/rules.js';
+import { TIERS, MATERIALS, PROCESS_TYPES, DOC_TYPES, STANDARD, requiredDocs } from './engine/rules.js';
 import { org, lot, transfer, transferPct, transferKgIn, round } from './engine/db.js';
 import { consumedByTransfer, processBalance } from './engine/checks.js';
 import { lotRemaining } from './engine/ledger.js';
@@ -70,42 +70,6 @@ export const FORMS = {
     submit(db, v, p) { const o = org(db, p.org); o.sc = certFrom(v, o); return 'Certificate saved'; },
   },
 
-  origin: {
-    render(db, p) {
-      const l = lot(db, p.lot);
-      const o = l.origin || {};
-      const sources = (o.sources || []).map((s) => [s.name, s.kind, s.city].filter(Boolean).join(', ')).join('\n');
-      return {
-        title: `Origin of ${l.id}`,
-        intro: 'Where the waste was collected. One source per line: factory, kind of waste point, city.',
-        body: [
-          field('sources', 'Source factories', `<textarea id="sources" name="sources" rows="4">${esc(sources)}</textarea>`, 'e.g. Anwar Knit Composite, Cutting room, Narayanganj'),
-          `<div class="field-row">${field('collectionFrom', 'Collected from', input('collectionFrom', o.collectionFrom, 'date'))}${field('collectionTo', 'Collected to', input('collectionTo', o.collectionTo, 'date'))}</div>`,
-          field('recycledType', 'Waste type', select('recycledType', [['pre-consumer', 'Pre-consumer (factory cutting waste)'], ['post-consumer', 'Post-consumer (used garments)']], l.recycledType || 'pre-consumer')),
-          field('colourSort', 'Colour and fibre sort', input('colourSort', o.colourSort)),
-          field('rmdNumber', 'Declaration number', input('rmdNumber', o.rmdNumber), 'Number printed on the signed reclaimed material declaration'),
-          `<label class="check-field"><input type="checkbox" id="rmdSigned" name="rmdSigned" ${o.rmdSigned ? 'checked' : ''}> I have uploaded the signed declaration</label>`,
-          `<label class="field" for="rmdFile"><span class="field-label">Signed declaration (PDF or photo)</span><input id="rmdFile" name="rmdFile" type="file" accept="application/pdf,image/*"><span class="field-hint">Prototype: the file name is stored, the file is not uploaded.</span></label>`,
-        ].join(''),
-        submit: 'Save declaration',
-      };
-    },
-    submit(db, v, p) {
-      const l = lot(db, p.lot);
-      l.recycledType = v.recycledType;
-      l.origin = {
-        ...l.origin,
-        sources: v.sources.split('\n').map((s) => s.trim()).filter(Boolean).map((s) => {
-          const [name, kind, city] = s.split(',').map((x) => x.trim());
-          return { name, kind, city };
-        }),
-        collectionFrom: v.collectionFrom, collectionTo: v.collectionTo, colourSort: v.colourSort,
-        rmdNumber: v.rmdNumber, rmdSigned: v.rmdSigned === 'on', rmdFile: v.rmdFile || l.origin?.rmdFile,
-      };
-      return 'Declaration saved';
-    },
-  },
-
   doc: {
     render(db, p) {
       const t = transfer(db, p.transfer);
@@ -134,7 +98,7 @@ export const FORMS = {
       const d = { number: v.number.trim(), date: v.date, seller: v.seller.trim(), buyer: v.buyer.trim(), qty: n(v.qty) };
       if (v.recycledPct !== undefined) d.recycledPct = n(v.recycledPct);
       if (v.file) d.file = v.file;
-      if (p.doc === 'TC') t.tc = { standard: org(db, t.fromOrg).sc?.standard || 'GRS', ...t.tc, ...d };
+      if (p.doc === 'TC') t.tc = { standard: STANDARD, ...t.tc, ...d };
       else t.docs = { ...t.docs, [p.doc]: { ...t.docs?.[p.doc], ...d } };
       return 'Document saved';
     },
@@ -188,7 +152,7 @@ export const FORMS = {
       if (v.blNumber) docs.BL = { ...base, number: v.blNumber, qty };
       const id = nextId('T', db.transfers);
       db.transfers.push({ id, fromOrg: me.id, toOrg: buyer.id, lotId: l.id, date: v.date, qty,
-        tc: v.tcNumber ? { number: v.tcNumber, date: v.tcDate || v.date, standard: me.sc?.standard || 'GRS', seller: me.name, buyer: buyer.name, qty, recycledPct: l.recycledPct } : null,
+        tc: v.tcNumber ? { number: v.tcNumber, date: v.tcDate || v.date, standard: STANDARD, seller: me.name, buyer: buyer.name, qty, recycledPct: l.recycledPct } : null,
         docs });
       const missing = requiredDocs(me, buyer).filter((d) => !docs[d]);
       return `Shipment ${id} recorded${missing.length ? `. Still missing: ${missing.map((d) => DOC_TYPES[d].label.toLowerCase()).join(', ')}` : ''}`;
@@ -241,27 +205,6 @@ export const FORMS = {
         consumption: garment ? { kgPerPc: n(v.kgPerPc), marker: v.marker } : undefined,
         records: v.records ? v.records.split(',').map((s) => s.trim()).filter(Boolean) : [] });
       return `Production ${pid} recorded; output lot ${lid}`;
-    },
-  },
-
-  wastelot: {
-    render() {
-      return {
-        title: 'Record collected waste',
-        intro: 'One lot per batch you sell to the recycler. Complete the origin declaration straight after.',
-        body: [
-          `<div class="field-row">${field('qty', 'Weight (kg)', input('qty', '', 'number', 'step="any" required'))}${field('createdAt', 'Date bagged', input('createdAt', today(), 'date'))}</div>`,
-          field('spec', 'Description', input('spec', 'Cotton jersey cutting waste')),
-        ].join(''),
-        submit: 'Record lot',
-      };
-    },
-    submit(db, v) {
-      const id = nextId('L-W', db.lots.filter((l) => l.id.startsWith('L-W')));
-      db.lots.push({ id, orgId: actingAs(), material: 'cotton-cutting-waste', qty: n(v.qty), unit: 'kg', recycledPct: 100,
-        recycledType: 'pre-consumer', createdAt: v.createdAt, spec: v.spec,
-        origin: { sources: [], collectionFrom: '', collectionTo: '', colourSort: '', rmdNumber: '', rmdSigned: false } });
-      return `Lot ${id} recorded. Add its origin declaration next.`;
     },
   },
 
@@ -324,7 +267,8 @@ function defaultAsk(c) {
     parties: 'Company names differ between documents. Please reissue with the registered names.',
     composition: 'The recycled % differs between the TC, PO and lot. Please confirm the correct blend and reissue.',
     consumption: 'Pieces booked need more fabric than was received under TC. Please check the cutting report and marker consumption.',
-    origin: 'Please complete the reclaimed material declaration for this lot.',
+    origin: 'Please complete the reclaimed material declaration for this batch.',
+    sources: 'Part of this batch is not traced to a factory. Please list every source factory with its weight.',
     sc: 'Your scope certificate did not cover this shipment date. Please share the renewed certificate.',
     tc: 'Please upload the transaction certificate for this shipment.',
     docs: 'Please upload the missing documents for this shipment.',
@@ -335,7 +279,7 @@ function defaultAsk(c) {
 function certFields(o) {
   const sc = o.sc || {};
   return [
-    `<div class="field-row">${field('number', 'Certificate number', input('number', sc.number, 'text', 'required'))}${field('standard', 'Standard', select('standard', [['GRS', 'GRS'], ['RCS', 'RCS']], sc.standard || 'GRS'))}</div>`,
+    `<div class="field-row">${field('number', 'Certificate number', input('number', sc.number, 'text', 'required'))}${field('standard', 'Standard', input('standard', 'GRS', 'text', 'readonly'))}</div>`,
     field('body', 'Certification body', input('body', sc.body, 'text', 'placeholder="e.g. Control Union"')),
     `<div class="field-row">${field('validFrom', 'Valid from', input('validFrom', sc.validFrom, 'date', 'required'))}${field('validTo', 'Valid to', input('validTo', sc.validTo, 'date', 'required'))}</div>`,
     `<p class="field-hint">Scope: ${esc(MATERIALS[materialFor(o.tier)]?.label || 'n/a')}</p>`,
@@ -343,6 +287,6 @@ function certFields(o) {
 }
 
 function certFrom(v, o) {
-  return { number: v.number.trim(), standard: v.standard, body: v.body, validFrom: v.validFrom, validTo: v.validTo, scope: [materialFor(o.tier)] };
+  return { number: v.number.trim(), standard: STANDARD, body: v.body, validFrom: v.validFrom, validTo: v.validTo, scope: [materialFor(o.tier)] };
 }
 

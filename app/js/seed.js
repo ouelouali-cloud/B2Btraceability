@@ -1,7 +1,8 @@
 // Demo data: one order of recycled-cotton T-shirts for an EU brand, traced
 // back to cutting waste collected from Bangladeshi garment factories.
 // Three gaps are planted on purpose, one at each weak point of a real chain:
-//   L-W1  the waste trader's origin declaration is incomplete
+//   L-W1  the waste trader's declaration is incomplete: one factory missing
+//         (1,200 kg unaccounted for), a date missing, not signed
 //   T3    the spinner's packing list shows gross weight (cones included)
 //   P4    the garment maker booked more pieces than the fabric supports
 
@@ -18,7 +19,7 @@ export function seed() {
     ({ number, date, seller: names[from], buyer: names[to], qty, ...extra });
 
   return {
-    version: 1,
+    version: 2,
     tenantId: 'sonar',
     orgs: [
       { id: 'waste', name: names.waste, tier: 'waste', city: 'Narayanganj', country: 'BD',
@@ -45,12 +46,14 @@ export function seed() {
       { id: 'L-W1', orgId: 'waste', material: 'cotton-cutting-waste', qty: 5200, unit: 'kg', recycledPct: 100,
         recycledType: 'pre-consumer', createdAt: '2026-06-30',
         origin: {
+          slipNumber: 'WB-7781', bags: 104, slipPhoto: null,
           sources: [
-            { name: 'Anwar Knit Composite', kind: 'Cutting room', city: 'Narayanganj' },
-            { name: 'Fatullah Garments', kind: 'Cutting room', city: 'Narayanganj' },
+            { name: 'Anwar Knit Composite', kind: 'Cutting waste', city: 'Narayanganj', kg: 2300, collectedOn: '2026-06-16' },
+            { name: 'Fatullah Garments', kind: 'Cutting waste', city: 'Narayanganj', kg: 1700, collectedOn: '' },
           ],
-          collectionFrom: '', collectionTo: '', colourSort: 'White / ecru, 100% cotton jersey',
-          rmdNumber: '', rmdSigned: false,
+          colourSort: 'White / ecru', fibre: '100% cotton',
+          contamination: { noElastane: true, noPrint: false },
+          declaration: { signer: '', role: '', signature: null, paperPhoto: null, signedOn: '', number: '' },
         } },
       { id: 'L-F1', orgId: 'recy', material: 'recycled-cotton-fibre', qty: 4380, unit: 'kg', recycledPct: 100,
         recycledType: 'pre-consumer', producedBy: 'P1', createdAt: '2026-07-08' },
@@ -58,8 +61,28 @@ export function seed() {
         recycledType: 'pre-consumer', producedBy: 'P2', createdAt: '2026-07-28', spec: 'Ne 20/1 OE, 40% recycled cotton' },
       { id: 'L-FB1', orgId: 'mill', material: 'single-jersey', qty: 2700, unit: 'kg', recycledPct: 40,
         recycledType: 'pre-consumer', producedBy: 'P3', createdAt: '2026-08-14', spec: '160 gsm single jersey, reactive dyed' },
-      { id: 'L-G1', orgId: 'sonar', material: 'tshirt', qty: 14000, unit: 'pcs', kgPerUnit: 0.165, recycledPct: 40,
-        recycledType: 'pre-consumer', producedBy: 'P4', createdAt: '2026-09-02', spec: 'Style NB-CREW-01, sizes S–XL' },
+      { id: 'L-G1', orgId: 'sonar', material: 'tshirt', qty: 14000, unit: 'pcs', kgPerUnit: 0.165, fibreKgPerUnit: 0.158, recycledPct: 40,
+        recycledType: 'pre-consumer', producedBy: 'P4', createdAt: '2026-09-02', spec: 'Everyday Crew Tee, style NB-CREW-01',
+        product: {
+          name: 'Everyday Crew Tee', brand: 'Nordvik Basics', style: 'NB-CREW-01', season: 'SS27',
+          colour: { name: 'Oat', code: 'NB-OAT-02', hex: '#d9ccb1' },
+          fabric: '160 g/m² single jersey, Ne 20/1 open-end yarn, reactive dyed',
+          composition: '40% recycled cotton (pre-consumer), 60% cotton',
+          construction: 'Side-seamed body, 1×1 rib collar in the same yarn, twin-needle sleeve and body hems',
+          fit: 'Regular fit, set-in sleeve',
+          sizes: [
+            { size: 'S', share: 15, kg: 0.150 }, { size: 'M', share: 35, kg: 0.160 },
+            { size: 'L', share: 35, kg: 0.170 }, { size: 'XL', share: 15, kg: 0.180 },
+          ],
+          hs: '6109.10', countryOfOrigin: 'Bangladesh', care: 'Machine wash 40 °C · Do not tumble dry · Iron medium',
+          bom: [
+            { component: 'Body fabric', material: 'Single jersey, 40% recycled cotton', kg: 0.150, recycledPct: 40, lotId: 'L-FB1', claimed: true },
+            { component: 'Collar rib', material: '1×1 rib, same yarn', kg: 0.008, recycledPct: 40, lotId: 'L-FB1', claimed: true },
+            { component: 'Sewing thread', material: 'Polyester core-spun, Tex 27', kg: 0.004, recycledPct: 0, claimed: false },
+            { component: 'Neck and care labels', material: 'Printed polyester satin', kg: 0.003, recycledPct: 0, claimed: false },
+          ],
+          photo: null,
+        } },
     ],
     transfers: [
       { id: 'T1', fromOrg: 'waste', toOrg: 'recy', lotId: 'L-W1', date: '2026-07-02', qty: 5200, receivedQty: 5150,
@@ -111,8 +134,8 @@ export function seed() {
       { id: 'G1', key: 'L-W1:origin', owner: 'waste', raisedBy: 'sonar', raisedAt: '2026-09-12', status: 'open',
         title: 'Reclaimed material declaration',
         thread: [
-          { by: 'sonar', at: '2026-09-12', text: 'Nordvik needs the origin of the jhut before we can ship. Please add the collection period, the third source factory you mentioned, and the signed declaration.' },
-          { by: 'waste', at: '2026-09-14', text: 'Collected over two weeks in June. Third factory is Siddhirganj Knitwear. Will upload the signed form.' },
+          { by: 'sonar', at: '2026-09-12', text: 'Nordvik needs the origin of the jhut before we can ship. Please add the collection dates, the third source factory, confirm the waste is free of prints, and sign the declaration.' },
+          { by: 'waste', at: '2026-09-14', text: 'Fatullah was collected on 22 June. 1,200 kg came from Siddhirganj Knitwear on 27 June. Will sign the declaration in the app.' },
         ] },
     ],
   };

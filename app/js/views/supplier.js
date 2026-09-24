@@ -7,6 +7,8 @@ import { checkTransfer, checkProcess, processBalance } from '../engine/checks.js
 import { allChecks, completeness } from '../engine/trace.js';
 import { esc, num, date, pill, dot, icon, tierIcon, countPills, bar, btn } from '../ui.js';
 import { gapCard, fixButton } from './common.js';
+import { STEPS, stepDone } from './declare.js';
+import { namedSources, sourcedKg } from '../engine/checks.js';
 import { today } from '../store.js';
 
 export function tasks(db, me) {
@@ -28,6 +30,7 @@ export function tasks(db, me) {
 
   const gaps = db.gaps.filter((g) => g.owner === me);
   const open = gaps.filter((g) => g.status === 'open');
+  if (o.tier === 'waste') return wasteHome(db, o, open);
   const failing = allChecks(db).filter((c) => c.owner === me && c.status === 'fail' && !open.some((g) => g.key === c.key) && c.group !== 'claim');
   const comp = completeness(db, me, today());
 
@@ -43,6 +46,32 @@ export function tasks(db, me) {
       <ul class="att-list">${failing.map((c) => `<li class="att">${dot('fail')}<div><div><strong>${esc(c.title)}</strong> <span class="mono muted">${esc(c.subject)}</span></div><div class="muted small">${esc(c.detail)}</div><div class="check-actions">${fixButton(c)}</div></div></li>`).join('')}</ul></section>` : ''}
     <section class="section"><div class="section-head"><h2>Your data</h2><span class="nowrap">${bar(comp.score)}</span></div>
       <ul class="todo">${comp.items.map((i) => `<li class="${i.ok ? 'done' : i.soft ? 'soft' : 'open'}"><span class="box" aria-hidden="true">${i.ok ? '✓' : ''}</span>${esc(i.label)}</li>`).join('')}</ul></section>`;
+}
+
+// Waste traders get one job per batch: finish and sign its declaration.
+function wasteHome(db, o, open) {
+  const batches = db.lots.filter((l) => l.orgId === o.id && l.origin).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const buyer = org(db, o.suppliesTo?.[0]);
+  const cards = batches.map((l) => {
+    const done = STEPS.filter((s) => stepDone(l, s.id)).length;
+    const signed = done === STEPS.length;
+    const src = namedSources(l);
+    return `<article class="batch ${signed ? 'batch-done' : ''}">
+      <div class="batch-top"><div><p class="eyebrow"><span class="mono">${esc(l.id)}</span> · bagged ${date(l.createdAt)}</p>
+        <h3>${num(l.qty)} kg <span class="muted">${esc(l.origin.colourSort || 'cotton waste')}</span></h3>
+        <p class="muted small">${src.length} ${src.length === 1 ? 'factory' : 'factories'} · ${num(sourcedKg(l))} of ${num(l.qty)} kg traced</p></div>
+        ${signed ? pill('pass', 'Signed') : pill('fail', `${done} of ${STEPS.length} steps`)}</div>
+      <div class="batch-steps" aria-hidden="true">${STEPS.map((s) => `<span class="${stepDone(l, s.id) ? 'on' : ''}"></span>`).join('')}</div>
+      <a class="btn ${signed ? '' : 'btn-primary'} batch-cta" href="#declare.${esc(l.id)}">${signed ? 'View declaration' : done ? 'Continue declaration' : 'Start declaration'}</a>
+    </article>`;
+  }).join('');
+  return `
+    <header class="page-head"><div><p class="eyebrow">Waste source · supplier portal</p><h1>${esc(o.name)}</h1>
+      <p class="muted">For every batch you sell to ${esc(buyer?.name || 'the recycler')}: say which factories it came from and sign. About three minutes per batch.</p></div>
+      <div class="head-actions">${btn(`${icon('plus')} New batch`, 'new-batch', {}, 'btn-primary')}</div></header>
+    ${open.length ? `<section class="section"><div class="section-head"><h2>Messages from your buyer</h2></div>${open.map((g) => gapCard(db, g)).join('')}</section>` : ''}
+    <section class="section"><div class="section-head"><h2>Your batches</h2></div>
+      <div class="batches">${cards || '<p class="empty">No batches yet. Tap New batch when you bag waste for sale.</p>'}</div></section>`;
 }
 
 function fixFor(db, g) {
@@ -83,7 +112,7 @@ export function production(db, me) {
       ${procs.map((p) => { const b = processBalance(db, p); return `<tr><td><a class="mono" href="#process.${esc(p.id)}">${esc(p.id)}</a></td><td class="nowrap">${date(p.date)}</td><td>${esc(PROCESS_TYPES[p.type].label)}</td><td class="num">${num(b.inKg)} → ${num(b.outKg)}</td><td class="num">${num(b.yieldPct, 1)}%</td><td>${countPills(checkProcess(db, p))}</td></tr>`; }).join('')}
       </tbody></table></div>` : `<p class="empty">${o.tier === 'waste' ? 'Waste sources collect rather than produce. Record each collection as a lot with its origin declaration.' : 'No production recorded.'}</p>`}
     </section>
-    <section class="section"><div class="section-head"><h2>Your lots</h2>${o.tier === 'waste' ? btn(`${icon('plus')} Record collected waste`, 'form', { form: 'wastelot' }, 'btn-small') : ''}</div>
+    <section class="section"><div class="section-head"><h2>Your lots</h2>${o.tier === 'waste' ? btn(`${icon('plus')} New batch`, 'new-batch', {}, 'btn-small') : ''}</div>
       ${lots.length ? `<ul class="plain">${lots.map((l) => `<li>${tierIcon(o.tier)} <a class="mono" href="#lot.${esc(l.id)}">${esc(l.id)}</a> ${esc(l.spec || MATERIALS[l.material].label)} · ${num(l.qty)} ${esc(l.unit)} · ${l.recycledPct}%</li>`).join('')}</ul>` : '<p class="empty">No lots.</p>'}
     </section>`;
 }

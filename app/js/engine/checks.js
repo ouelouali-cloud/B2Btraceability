@@ -4,7 +4,7 @@
 // itself when the underlying data is corrected and the check passes.
 
 import { TIERS, PROCESS_TYPES, DOC_TYPES, RULES, requiredDocs, MATERIALS } from './rules.js';
-import { org, lot, transfer, kgOf, transferPct, transferKgIn, daysBetween, pctDiff, round } from './db.js';
+import { org, lot, transfer, kgOf, fibreKgOf, transferPct, transferKgIn, daysBetween, pctDiff, round } from './db.js';
 
 const mk = (subject, owner) => (id, group, title, status, detail) => ({
   key: `${subject}:${id}`, subject, id, group, title, status, detail, owner,
@@ -123,32 +123,66 @@ export function checkTransfer(db, t) {
 // ---------------------------------------------------------------- origin
 
 export const ORIGIN_FIELDS = [
-  ['sources', 'Source factories listed'],
-  ['collectionFrom', 'Collection start date'],
-  ['collectionTo', 'Collection end date'],
+  ['slipNumber', 'Weighbridge slip number'],
+  ['sources', 'At least one source factory'],
+  ['sourceDetail', 'Weight and date for every source'],
+  ['colourSort', 'Colour sort'],
+  ['fibre', 'Fibre content'],
+  ['contamination', 'Confirmed free of elastane and prints'],
   ['recycledType', 'Pre- or post-consumer'],
-  ['colourSort', 'Colour / fibre sort'],
-  ['rmdNumber', 'Declaration number'],
-  ['rmdSigned', 'Declaration signed'],
+  ['signer', 'Name of signer'],
+  ['signature', 'Signature or signed paper form'],
 ];
+
+export const namedSources = (l) => (l.origin?.sources || []).filter((s) => s.name && s.name.trim());
 
 export function originMissing(l) {
   const o = l.origin || {};
-  return ORIGIN_FIELDS.filter(([k]) => {
-    if (k === 'recycledType') return !l.recycledType;
-    if (k === 'sources') return !(o.sources || []).some((s) => s.name);
-    return !o[k];
-  });
+  const src = namedSources(l);
+  const d = o.declaration || {};
+  const ok = {
+    slipNumber: !!o.slipNumber,
+    sources: src.length > 0,
+    sourceDetail: src.length > 0 && src.every((s) => s.kg > 0 && s.collectedOn),
+    colourSort: !!o.colourSort,
+    fibre: !!o.fibre,
+    contamination: !!(o.contamination?.noElastane && o.contamination?.noPrint),
+    recycledType: !!l.recycledType,
+    signer: !!d.signer,
+    signature: !!(d.signature || d.paperPhoto),
+  };
+  return ORIGIN_FIELDS.filter(([k]) => !ok[k]);
+}
+
+// First and last collection date across the sources.
+export function collectionPeriod(l) {
+  const dates = namedSources(l).map((s) => s.collectedOn).filter(Boolean).sort();
+  return dates.length ? [dates[0], dates[dates.length - 1]] : [null, null];
+}
+
+export function sourcedKg(l) {
+  return namedSources(l).reduce((s, x) => s + (Number(x.kg) || 0), 0);
 }
 
 export function checkOrigin(db, l) {
   const c = mk(l.id, l.orgId);
   const missing = originMissing(l);
-  const o = l.origin || {};
-  const srcCount = (o.sources || []).filter((s) => s.name).length;
-  return [c('origin', 'origin', 'Reclaimed material declaration', missing.length ? 'fail' : 'pass',
+  const src = namedSources(l);
+  const d = l.origin?.declaration || {};
+  const [from, to] = collectionPeriod(l);
+  const out = [c('origin', 'origin', 'Reclaimed material declaration', missing.length ? 'fail' : 'pass',
     missing.length ? `Missing: ${missing.map(([, label]) => label.toLowerCase()).join(', ')}.`
-      : `${srcCount} source ${srcCount === 1 ? 'factory' : 'factories'}, collected ${o.collectionFrom} to ${o.collectionTo}, ${l.recycledType}. Declaration ${o.rmdNumber} signed.`)];
+      : `${src.length} source ${src.length === 1 ? 'factory' : 'factories'}, collected ${from} to ${to}, ${l.recycledType}. ` +
+        `Declaration ${d.number || ''} signed by ${d.signer} on ${d.signedOn || 'n/a'}.`)];
+
+  const sum = sourcedKg(l);
+  const gap = l.qty - sum;
+  const off = !src.length || pctDiff(sum, l.qty) > RULES.qtyTolerancePct;
+  out.push(c('sources', 'origin', 'Every kg traced to a factory', off ? 'fail' : 'pass',
+    !src.length ? `No source factories listed for ${fmt(l.qty)} kg.`
+      : off ? `${fmt(sum)} of ${fmt(l.qty)} kg traced to a named factory; ${fmt(Math.abs(gap))} kg ${gap > 0 ? 'unaccounted for' : 'more than the batch weight'}.`
+        : `${fmt(sum)} of ${fmt(l.qty)} kg traced to ${src.length} named ${src.length === 1 ? 'factory' : 'factories'}.`));
+  return out;
 }
 
 // ---------------------------------------------------------------- production
@@ -167,7 +201,7 @@ export function processBalance(db, p) {
   const inKg = claimedIn + otherIn;
   const recIn = p.inputs.reduce((s, i) => s + i.kg * transferPct(db, transfer(db, i.transferId)) / 100, 0);
   const outKg = kgOf(out, out.qty);
-  const recOut = outKg * out.recycledPct / 100;
+  const recOut = fibreKgOf(out, out.qty) * out.recycledPct / 100;
   return {
     inKg, claimedIn, otherIn, recIn, outKg, recOut,
     computedPct: inKg ? (recIn / inKg) * 100 : 0,

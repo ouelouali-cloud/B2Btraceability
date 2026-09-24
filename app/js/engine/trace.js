@@ -2,8 +2,8 @@
 // whether a claim on that product can be released.
 
 import { TIERS, RULES, requiredDocs } from './rules.js';
-import { org, lot, transfer, processOf, kgOf, daysBetween } from './db.js';
-import { checkTransfer, checkProcess, checkOrigin, originMissing, worst, fmt } from './checks.js';
+import { org, lot, transfer, processOf, fibreKgOf, daysBetween } from './db.js';
+import { checkTransfer, checkProcess, checkOrigin, originMissing, sourcedKg, worst, fmt } from './checks.js';
 import { ledger, lotRemaining } from './ledger.js';
 
 // Tree: { lot, org, process, checks, inputs: [{ transfer, checks, upstream }] }
@@ -62,7 +62,7 @@ export function checkClaim(db, c) {
       : `Claim ${c.recycledPct}% vs product ${l.recycledPct}%.`));
 
   const led = ledger(db, owner);
-  const kg = kgOf(l, c.pcs) * c.recycledPct / 100;
+  const kg = fibreKgOf(l, c.pcs) * c.recycledPct / 100;
   out.push(mk('balance', 'Within mass-balance credit', led.firstNegative ? 'fail' : 'pass',
     led.firstNegative ? `Account goes negative at ${led.firstNegative.ref}. Claims cannot exceed recycled content produced.`
       : `Claim uses ${fmt(Math.round(kg))} kg recycled; ${fmt(Math.round(led.credit))} kg credit left after it.`));
@@ -109,7 +109,8 @@ export function completeness(db, orgId, asOf) {
   }
   for (const l of db.lots.filter((x) => x.orgId === orgId && x.origin)) {
     const miss = originMissing(l);
-    items.push({ label: `Origin declaration for ${l.id}` + (miss.length ? ` (${miss.length} fields missing)` : ''), ok: !miss.length });
+    items.push({ label: `Origin declaration for ${l.id}` + (miss.length ? ` (${miss.length} items missing)` : ''), ok: !miss.length });
+    items.push({ label: `Every kg of ${l.id} traced to a factory (${Math.round(sourcedKg(l)).toLocaleString('en-GB')} of ${l.qty.toLocaleString('en-GB')} kg)`, ok: l.qty > 0 && Math.abs(sourcedKg(l) - l.qty) / l.qty <= 0.02 });
   }
   for (const t of db.transfers.filter((x) => x.fromOrg === orgId)) {
     if (tier.certRequired) items.push({ label: `TC for ${t.id}`, ok: !!t.tc?.number });

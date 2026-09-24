@@ -4,15 +4,15 @@
 //   credit – recycled kg in produced output that may still be claimed
 // Nothing may leave the credit column that production did not put there.
 
-import { lot, kgOf, transferPct, transferKgIn } from './db.js';
-import { processBalance } from './checks.js';
+import { lot, kgOf, fibreKgOf, transferPct, transferKgIn } from './db.js';
+import { processBalance, collectionPeriod } from './checks.js';
 
 export function ledger(db, orgId) {
   const rows = [];
 
   for (const l of db.lots) {
     if (l.orgId === orgId && l.origin) {
-      rows.push({ date: l.origin.collectionTo || l.createdAt, kind: 'collected', ref: l.id,
+      rows.push({ date: collectionPeriod(l)[1] || l.createdAt, kind: 'collected', ref: l.id,
         note: `Waste collected, ${kgOf(l, l.qty).toLocaleString('en-GB')} kg`, input: 0, credit: kgOf(l, l.qty) * l.recycledPct / 100 });
     }
   }
@@ -34,7 +34,7 @@ export function ledger(db, orgId) {
   for (const t of db.transfers) {
     if (t.fromOrg === orgId) {
       const l = lot(db, t.lotId);
-      const kg = kgOf(l, t.qty);
+      const kg = fibreKgOf(l, t.qty);
       rows.push({ date: t.date, kind: 'shipped', ref: t.id,
         note: `Shipped ${t.qty.toLocaleString('en-GB')} ${l.unit} at ${transferPct(db, t)}%`, input: 0, credit: -kg * transferPct(db, t) / 100 });
     }
@@ -43,7 +43,7 @@ export function ledger(db, orgId) {
     const l = lot(db, c.lotId);
     if (l && l.orgId === orgId) {
       rows.push({ date: c.date, kind: 'claimed', ref: c.id,
-        note: `Claim to buyer: ${c.pcs.toLocaleString('en-GB')} pcs at ${c.recycledPct}%`, input: 0, credit: -kgOf(l, c.pcs) * c.recycledPct / 100 });
+        note: `Claim to buyer: ${c.pcs.toLocaleString('en-GB')} pcs at ${c.recycledPct}%`, input: 0, credit: -fibreKgOf(l, c.pcs) * c.recycledPct / 100 });
     }
   }
 

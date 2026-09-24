@@ -11,6 +11,12 @@ export function kgOf(l, qty) {
   return l.unit === 'pcs' ? qty * (l.kgPerUnit || 0) : qty;
 }
 
+// Weight that carries the recycled claim. For garments this is the fibre in the
+// body fabric and rib; sewing thread and labels are trims and carry no claim.
+export function fibreKgOf(l, qty) {
+  return l.unit === 'pcs' ? qty * (l.fibreKgPerUnit ?? l.kgPerUnit ?? 0) : qty;
+}
+
 // Recycled share of a transfer, as stated on its TC, falling back to the lot's own figure.
 export function transferPct(db, t) {
   if (t.tc && Number.isFinite(t.tc.recycledPct)) return t.tc.recycledPct;

@@ -8,6 +8,7 @@ import { traceLot, chainSteps, claimStatus, allChecks, completeness } from '../e
 import { esc, num, date, pill, dot, icon, tierIcon, countPills, bar, btn } from '../ui.js';
 import { checkList, checkActions, gapCard } from './common.js';
 import { today } from '../store.js';
+import { productThumb } from './product.js';
 
 // ---------------------------------------------------------------- overview
 
@@ -22,7 +23,8 @@ export function overview(db) {
     const l = lot(db, c.lotId);
     return `<article class="claim claim-${s.status}">
       <div class="claim-top">
-        <div>
+        ${productThumb(l, 'md')}
+        <div class="claim-copy">
           <p class="eyebrow">Claim ${esc(c.id)} · ${esc(org(db, c.buyer).name)} · PO ${esc(c.buyerPo)}</p>
           <h2 class="claim-text">“${esc(c.text)}”</h2>
           <p class="muted">${num(c.pcs)} pcs of ${esc(l.spec || MATERIALS[l.material].label)} · ${num(kgOf(l, c.pcs) * c.recycledPct / 100)} kg recycled cotton claimed</p>
@@ -120,13 +122,14 @@ export function chain(db, claimId) {
           <p class="node-tier">${esc(TIERS[node.org.tier].label)}</p>
           <h3><a href="#org.${esc(node.org.id)}">${esc(node.org.name)}</a></h3>
           <p class="node-lot"><a class="mono" href="#lot.${esc(l.id)}">${esc(l.id)}</a> ${esc(l.spec || MATERIALS[l.material].label)} · ${num(l.qty)} ${esc(l.unit)} · ${l.recycledPct}% recycled</p>
-        </div>
+          ${l.product ? `<a class="link small" href="#product.${esc(l.id)}">Product sheet →</a>` : ''}
+        </div>${l.product ? productThumb(l) : ''}
         <div class="node-cert">${sc ? `<span class="chip">${icon('cert')} ${esc(sc.standard)} ${esc(sc.number)}</span>` : '<span class="chip chip-quiet">Not certified</span>'}</div>
       </div>
       ${p ? `<a class="node-proc" href="#process.${esc(p.id)}">
         <span><span class="mono">${esc(p.id)}</span> ${esc(PROCESS_TYPES[p.type].label)}: ${num(b.inKg)} kg in → ${num(b.outKg)} kg out (${num(b.yieldPct, 1)}%)</span>
         <span class="hop-pills">${countPills(node.checks)}</span></a>`
-    : `<a class="node-proc" href="#lot.${esc(l.id)}"><span>Origin: ${esc(l.recycledType)} waste from ${(l.origin?.sources || []).length} cutting rooms</span><span class="hop-pills">${countPills(node.checks)}</span></a>`}
+    : `<a class="node-proc" href="#lot.${esc(l.id)}"><span>Origin: ${esc(l.recycledType || 'unknown')} waste, ${l.origin?.declaration?.signedOn ? `declaration ${esc(l.origin.declaration.number)}` : 'declaration not signed'}</span><span class="hop-pills">${countPills(node.checks)}</span></a>`}
     </article>`;
   }).join('');
 
