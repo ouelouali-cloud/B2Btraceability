@@ -228,6 +228,92 @@ export const COMMANDS = {
     },
   },
 
+  'product.save': {
+    allowed: (db, a, p) => (lot(db, p.lot)?.orgId === a && lot(db, p.lot)?.unit === 'pcs' ? '' : 'Only the maker can edit a product sheet.'),
+    run(db, { lot: lid, v }) {
+      const l = lot(db, lid);
+      const total = n(v.garmentKg);
+      const fibre = n(v.fibreKg);
+      if (!v.name?.trim() || !total || !fibre) fail('Product name, garment weight and fabric weight are required.');
+      if (fibre > total) fail('Fabric weight cannot be more than the garment weight.');
+      const sizes = String(v.sizes || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+        const [size, share] = s.split(':').map((x) => x.trim());
+        return { size, share: Number(share) || 0, kg: total };
+      });
+      const fabricLot = db.processes.find((p) => p.id === l.producedBy)?.inputs?.[0];
+      const inputLot = fabricLot ? transfer(db, fabricLot.transferId)?.lotId : undefined;
+      const pct = l.recycledPct;
+      const keepPhoto = l.product?.photo || null;
+      l.kgPerUnit = total;
+      l.fibreKgPerUnit = fibre;
+      l.spec = v.name.trim() + (v.style ? `, style ${v.style.trim()}` : '');
+      l.product = {
+        name: v.name.trim(), brand: (v.brand || '').trim(), style: (v.style || '').trim(), season: (v.season || '').trim(),
+        colour: { name: (v.colourName || '').trim() || 'Natural', code: (v.colourCode || '').trim(), hex: /^#[0-9a-f]{6}$/i.test(v.colourHex || '') ? v.colourHex : '#d9ccb1' },
+        fabric: (v.fabric || '').trim(), composition: `${pct}% recycled cotton (${l.recycledType || 'pre-consumer'}), ${Math.round((100 - pct) * 10) / 10}% cotton`,
+        construction: (v.construction || '').trim(), fit: (v.fit || '').trim() || 'Regular fit',
+        sizes: sizes.length ? sizes : [{ size: 'One size', share: 100, kg: total }],
+        hs: (v.hs || '').trim() || '6109.10', countryOfOrigin: (v.countryOfOrigin || '').trim() || 'Bangladesh', care: (v.care || '').trim(),
+        bom: [
+          { component: 'Fabric (body and rib)', material: v.fabric || 'Knitted fabric', kg: fibre, recycledPct: pct, lotId: inputLot, claimed: true },
+          ...(total - fibre > 0.0005 ? [{ component: 'Trims (thread, labels)', material: 'Non-recycled', kg: Math.round((total - fibre) * 1000) / 1000, recycledPct: 0, claimed: false }] : []),
+        ],
+        photo: keepPhoto,
+      };
+      return `Product sheet saved for ${lid}: ${l.product.name}`;
+    },
+  },
+
+  // ---- buyers and claims
+
+  'buyer.add': {
+    allowed: (db, a) => (isTenant(db, a) ? '' : 'Only the manufacturer adds buyers.'),
+    run(db, { id, v }, ctx) {
+      if (!v.name?.trim()) fail('Buyer name is required.');
+      const oid = id || makeId('B').toLowerCase();
+      db.orgs.push({ id: oid, name: v.name.trim(), tier: 'buyer', city: (v.city || '').trim(), country: (v.country || '').toUpperCase().trim(),
+        email: (v.email || '').trim(), status: 'active', invitedBy: ctx.actor, suppliesTo: [], sc: null });
+      org(db, ctx.actor).suppliesTo = [...new Set([...(org(db, ctx.actor).suppliesTo || []), oid])];
+      return `Buyer added: ${v.name.trim()}`;
+    },
+  },
+
+  'claim.create': {
+    allowed: (db, a, p) => (isTenant(db, a) && lot(db, p.v?.lotId)?.orgId === a ? '' : 'Only the manufacturer can claim its own garments.'),
+    run(db, { id, v }, ctx) {
+      const l = lot(db, v.lotId);
+      const buyer = org(db, v.buyer);
+      const pcs = n(v.pcs);
+      const pct = n(v.recycledPct);
+      if (!buyer || buyer.tier !== 'buyer') fail('Choose a buyer.');
+      if (!pcs || pcs <= 0) fail('Enter the number of pieces.');
+      if (!pct || pct <= 0) fail('Enter the recycled share to claim.');
+      if (!v.buyerPo?.trim()) fail('The buyer’s purchase order number is required.');
+      const cid = id || makeId('C');
+      db.claims.push({ id: cid, lotId: l.id, buyer: buyer.id, date: v.date || ctx.now, pcs, recycledPct: pct,
+        buyerPo: v.buyerPo.trim(), text: (v.text || '').trim() || `Made with ${pct}% recycled cotton (${l.recycledType || 'pre-consumer'})`, standard: STANDARD });
+      return `Claim ${cid}: ${pcs.toLocaleString('en-GB')} pcs of ${l.id} at ${pct}% for ${buyer.name}`;
+    },
+  },
+
+  'claim.share': {
+    allowed: (db, a, p) => (isTenant(db, a) && db.claims.some((c) => c.id === p.claim) ? '' : 'Only the manufacturer can share its evidence packs.'),
+    run(db, { claim: cid, token }, ctx) {
+      const c = db.claims.find((x) => x.id === cid);
+      if (!token || String(token).length < 24) fail('Share link could not be created.');
+      c.share = { token, since: ctx.now };
+      return `Evidence pack for ${cid} shared with ${org(db, c.buyer)?.name || 'the buyer'}`;
+    },
+  },
+
+  'claim.unshare': {
+    allowed: (db, a, p) => (isTenant(db, a) && db.claims.some((c) => c.id === p.claim) ? '' : 'Only the manufacturer can stop sharing.'),
+    run(db, { claim: cid }) {
+      delete db.claims.find((x) => x.id === cid).share;
+      return `Stopped sharing the evidence pack for ${cid}`;
+    },
+  },
+
   // ---- gaps
 
   'gap.raise': {

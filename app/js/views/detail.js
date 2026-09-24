@@ -8,8 +8,9 @@ import { completeness } from '../engine/trace.js';
 import { lotRemaining } from '../engine/ledger.js';
 import { esc, num, date, pill, tierIcon, icon, btn, bar, countPills } from '../ui.js';
 import { checkList, gapCard, backLink } from './common.js';
-import { actingAs, isTenant, today } from '../store.js';
+import { actingAs, isTenant, today, fileUrl } from '../store.js';
 
+const scan = (f) => (f?.sha ? ` <a class="scan-link" href="${esc(fileUrl(f))}" target="_blank" rel="noopener" title="Open scan (SHA-256 ${esc(f.sha.slice(0, 12))}…)">${icon('doc')}<span class="sr">Open scan</span></a>` : '');
 const notFound = (what) => `<p class="empty">${esc(what)} not found, or not shared with your company.</p>`;
 
 // ---------------------------------------------------------------- handoff
@@ -38,7 +39,7 @@ export function handoff(db, id) {
   if (TIERS[seller.tier].certRequired || t.tc) {
     const tc = t.tc || {};
     rows.push(`<tr class="${tc.number ? '' : 'row-missing'}"><th scope="row"><span class="doc-kind doc-cert">Transaction cert.</span></th>
-      <td class="mono">${esc(tc.number || 'Missing')}</td><td class="nowrap">${date(tc.date)}</td>
+      <td class="mono">${esc(tc.number || 'Missing')}${scan(tc.file)}</td><td class="nowrap">${date(tc.date)}</td>
       ${partyCell(tc.seller, seller)}${partyCell(tc.buyer, buyer)}${qtyCell(tc.qty)}${pctCell(tc.recycledPct)}
       <td>${isSeller ? btn('Edit', 'form', { form: 'doc', transfer: t.id, doc: 'TC' }, 'btn-small') : ''}</td></tr>`);
   }
@@ -46,7 +47,7 @@ export function handoff(db, id) {
     const d = t.docs?.[k];
     if (!d && !needed.includes(k)) continue;
     rows.push(`<tr class="${d?.number ? '' : 'row-missing'}"><th scope="row"><span class="doc-kind">${esc(DOC_TYPES[k].label)}</span></th>
-      <td class="mono">${esc(d?.number || 'Missing')}</td><td class="nowrap">${date(d?.date)}</td>
+      <td class="mono">${esc(d?.number || 'Missing')}${scan(d?.file)}</td><td class="nowrap">${date(d?.date)}</td>
       ${partyCell(d?.seller, seller)}${partyCell(d?.buyer, buyer)}${qtyCell(d?.qty)}${pctCell(d?.recycledPct)}
       <td>${isSeller ? btn(d ? 'Edit' : 'Add', 'form', { form: 'doc', transfer: t.id, doc: k }, 'btn-small') : ''}</td></tr>`);
   }
@@ -162,6 +163,7 @@ export function lotView(db, id) {
       <div>${countPills(checks)}</div>
     </header>
     ${originBlock}
+    ${l.unit === 'pcs' && !l.product ? `<p><a class="btn" href="#product.${esc(l.id)}">Add product sheet</a></p>` : ''}
     ${l.product ? `<a class="product-strip" href="#product.${esc(l.id)}">${productThumb(l)}<span><strong>${esc(l.product.name)}</strong><span class="muted small">Product sheet: photo, bill of materials, sizes, hang tag</span></span></a>` : ''}
     ${l.producedBy ? `<p><a class="link" href="#process.${esc(l.producedBy)}">Produced in ${esc(l.producedBy)} →</a></p>` : ''}
     <section class="section"><div class="section-head"><h2>Checks</h2></div>${checks.length ? checkList(db, checks) : '<p class="empty">No checks for this lot.</p>'}</section>

@@ -189,3 +189,16 @@ export function joinView(info, error) {
     <button class="btn btn-primary" type="submit">Create account</button>
   </form></div>`;
 }
+
+// ---------------------------------------------------------------- inbox
+
+export function inboxView(feed, me, lastSeen) {
+  const mine = feed.filter((e) => e.actor !== me && e.actor !== 'system');
+  const items = mine.map((e) => `<li class="feed-item ${e.seq > lastSeen ? 'feed-new' : ''}">
+      <div class="feed-top"><strong>${esc(e.actorName)}</strong><span class="muted small">${ago(e.at)}</span></div>
+      <p>${esc(e.summary)}</p><p class="muted small">${esc(e.user)} · entry ${e.seq}</p></li>`).join('');
+  return `
+    <header class="page-head"><div><p class="eyebrow">Inbox</p><h1>What your partners did</h1>
+      <p class="muted">Entries by other companies that touch your records: requests, replies, deliveries, countersignatures. With email or SMS set up on the server, the important ones also reach you there.</p></div></header>
+    <ol class="feed-list inbox-list">${items || '<li class="empty">Nothing yet. New entries appear here live.</li>'}</ol>`;
+}

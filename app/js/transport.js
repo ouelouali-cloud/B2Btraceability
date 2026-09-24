@@ -24,6 +24,21 @@ async function sha256(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Rejected('That file could not be read.'));
+    r.readAsDataURL(file);
+  });
+}
+
+async function sha256Bytes(buf) {
+  if (!globalThis.crypto?.subtle) return 'unhashed';
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // ---------------------------------------------------------------- server
 
 class ServerTransport {
@@ -92,6 +107,16 @@ class ServerTransport {
   }
 
   fetchState() { return this.req('/api/state'); }
+  fetchPack(token) { return this.req(`/api/pack/${encodeURIComponent(token)}`); }
+  changePassword(current, next) { return this.req('/api/password', { method: 'POST', body: { current, next } }); }
+  fileUrl(f, packToken) {
+    if (!f?.sha) return '#';
+    return packToken ? `/api/pack/${encodeURIComponent(packToken)}/files/${f.sha}` : `/api/files/${f.sha}?token=${encodeURIComponent(this.token || '')}`;
+  }
+  async uploadFile(file) {
+    const data = await readAsDataUrl(file);
+    return this.req('/api/files', { method: 'POST', body: { name: file.name, type: file.type, data: data.split(',')[1] } });
+  }
   send(cmd) { return this.req('/api/commands', { method: 'POST', body: cmd }); }
   ledger() { return this.req('/api/ledger'); }
   verify() { return this.req('/api/ledger/verify'); }
@@ -201,6 +226,26 @@ class DemoTransport {
     const e = await this.append({ actor: this.actor, user: this.userName(this.actor), command: cmd.name, commandId: cmd.id, summary: r.summary, changes });
     return { seq: e.seq, summary: r.summary, closed: r.closed };
   }
+
+  async fetchPack(token) {
+    const c = this.state.claims.find((x) => x.share?.token === token);
+    if (!c) throw new Rejected('This evidence pack link is not valid or is no longer shared.');
+    const { evidencePack } = await import('./engine/pack.js');
+    return evidencePack(this.state, c.id, { entries: this.entries.map((e) => this.publicEntry(e)), verify: await this.verify() });
+  }
+
+  fileUrl(f) { return f?.data || '#'; }
+
+  // The hosted demo keeps files inside the browser, so keep them small.
+  async uploadFile(file) {
+    if (!/^(image\/(jpeg|png|webp|gif)|application\/pdf)$/.test(file.type)) throw new Rejected('Only PDF, JPEG, PNG or WebP files can be attached.');
+    if (file.size > 1.5 * 1024 * 1024) throw new Rejected('In the hosted demo, files can be at most 1.5 MB. The server accepts up to 8 MB.');
+    const data = await readAsDataUrl(file);
+    const sha = await sha256Bytes(await file.arrayBuffer());
+    return { sha, name: file.name, type: file.type, size: file.size, data };
+  }
+
+  async changePassword() { throw new Rejected('The hosted demo has no accounts.'); }
 
   async ledger() {
     return this.entries.filter((e) => entryVisible(this.state, this.actor, e)).map((e) => this.publicEntry(e)).reverse();

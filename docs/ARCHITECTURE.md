@@ -53,12 +53,10 @@ All tolerances live in `app/js/engine/rules.js`.
 
 ## Roadmap
 
-Done: backend with SQLite and a hash-linked ledger; accounts, sessions and invitation links; permissions and visibility enforced on the server; live updates; offline waste form with outbox; recycler goods-in and countersigning.
+Done (MVP): backend with SQLite and a hash-linked ledger; accounts, sessions, invitation links, password change, login throttling, session expiry, security headers; permissions and visibility enforced on the server; live updates; offline waste form with outbox; recycler goods-in and countersigning; claims to buyers; evidence pack per claim with read-only share links, download and print; document scans stored by SHA-256 fingerprint; product sheets; notifications (stored, and sent through a webhook); in-app inbox; setup for a real network; backups; Docker and deployment guide.
 
 Next:
-1. Email and SMS delivery of invitations and gap notifications (links already work).
-2. File storage for document scans (today only photos resized on the phone are kept, inside the record).
-3. Reading TC and invoice scans automatically (OCR) and checking TC numbers against Textile Exchange's database.
+1. Reading TC and invoice scans automatically (OCR) and checking TC numbers against Textile Exchange's database.
 4. Multiple inputs and outputs per production run, lot splitting and merging, metres ↔ kg for woven fabric.
 5. An audit pack per claim: all documents, the ledger lines and the hash-chain proof, exported for the certification body.
 6. Postgres and multi-tenant hosting once more than one manufacturer uses it (the engine does not change).

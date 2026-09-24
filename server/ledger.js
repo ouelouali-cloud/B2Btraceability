@@ -52,13 +52,14 @@ export class Ledger {
 
   get empty() { return this.seq === 0; }
 
-  // First entry: the demo network as it stands on day one.
-  genesis() {
-    const s = seed();
+  // First entry: the network as it stands on day one (the demo chain unless
+  // a real one is given, see setup.js).
+  genesis(network = seed(), summary = 'Demo supply chain loaded') {
+    const s = network;
     this.sql.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('tenant', ?)").run(s.tenantId);
     this.state = emptyState(s.tenantId);
     const changes = COLLECTIONS.flatMap((c) => s[c].map((r) => ({ c, id: r.id, data: r })));
-    this.append({ actor: 'system', user: 'system', command: 'network.seed', commandId: null, summary: 'Demo supply chain loaded', changes });
+    this.append({ actor: 'system', user: 'system', command: 'network.seed', commandId: null, summary, changes });
   }
 
   append({ actor, user, command, commandId, summary, changes }) {

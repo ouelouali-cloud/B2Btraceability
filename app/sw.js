@@ -1,14 +1,14 @@
 // Offline shell. The app's files are cached so the waste form opens with no
 // signal; data changes wait in the app's outbox (see js/store.js), not here.
 // Network first, so a deploy is picked up as soon as there is a connection.
-const CACHE = 'threadback-shell-v3';
+const CACHE = 'threadback-shell-v4';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest', 'icon.svg',
   'js/main.js', 'js/store.js', 'js/transport.js', 'js/seed.js', 'js/ui.js', 'js/forms.js',
   'js/engine/rules.js', 'js/engine/db.js', 'js/engine/checks.js', 'js/engine/ledger.js', 'js/engine/trace.js',
-  'js/engine/declaration.js', 'js/engine/commands.js', 'js/engine/ledgerlog.js', 'js/engine/visibility.js', 'js/engine/flow.js',
+  'js/engine/declaration.js', 'js/engine/commands.js', 'js/engine/ledgerlog.js', 'js/engine/visibility.js', 'js/engine/flow.js', 'js/engine/pack.js',
   'js/views/common.js', 'js/views/tenant.js', 'js/views/detail.js', 'js/views/supplier.js', 'js/views/declare.js',
-  'js/views/product.js', 'js/views/system.js',
+  'js/views/product.js', 'js/views/system.js', 'js/views/pack.js',
 ];
 
 self.addEventListener('install', (e) => {

@@ -9,7 +9,7 @@ import { consumedByTransfer, processBalance } from './engine/checks.js';
 import { lotRemaining } from './engine/ledger.js';
 import { allChecks } from './engine/trace.js';
 import { esc, num, date, field, input, select } from './ui.js';
-import { actingAs, today } from './store.js';
+import { actingAs, today, uploadFile } from './store.js';
 import { makeId } from './engine/commands.js';
 import { isSigned } from './engine/declaration.js';
 import { namedSources, collectionPeriod } from './engine/checks.js';
@@ -82,12 +82,17 @@ export const FORMS = {
           field('buyer', 'Buyer as printed', input('buyer', d.buyer ?? buyer.name)),
           `<div class="field-row">${field('qty', `Quantity (${l.unit})`, input('qty', d.qty ?? t.qty, 'number', 'step="any"'), p.doc === 'PACKING' ? 'Net weight, excluding cones and packaging' : '')}
           ${showPct ? field('recycledPct', 'Recycled %', input('recycledPct', d.recycledPct ?? l.recycledPct, 'number', 'step="any"')) : ''}</div>`,
-          `<label class="field" for="file"><span class="field-label">Document scan</span><input id="file" name="file" type="file" accept="application/pdf,image/*"></label>`,
+          `<label class="field" for="file"><span class="field-label">Document scan (PDF or photo, up to 8 MB)</span><input id="file" name="file" type="file" accept="application/pdf,image/*">${d.file?.sha ? `<span class="field-hint">On file: ${esc(d.file.name)}. Choose a new file to replace it.</span>` : '<span class="field-hint">Its fingerprint is written into the ledger, so the file cannot be swapped later.</span>'}</label>`,
         ].join(''),
         submit: 'Save document',
       };
     },
-    command: (v, p) => ['doc.save', { transfer: p.transfer, doc: p.doc, v }],
+    async command(v, p, db, form) {
+      const file = form?.querySelector('#file')?.files?.[0];
+      if (file) v.file = await uploadFile(file);
+      else delete v.file;
+      return ['doc.save', { transfer: p.transfer, doc: p.doc, v }];
+    },
   },
 
   received: {
@@ -179,6 +184,71 @@ export const FORMS = {
       };
     },
     command: (v, p) => ['production.correct', { process: p.process, v }],
+  },
+
+  buyer: {
+    render() {
+      return {
+        title: 'Add a buyer',
+        intro: 'The EU brand or importer you ship to. They do not need an account; you can share evidence packs with them by link.',
+        body: [
+          field('name', 'Company name', input('name', '', 'text', 'required')),
+          `<div class="field-row">${field('city', 'City', input('city', ''))}${field('country', 'Country code', input('country', '', 'text', 'maxlength="2" placeholder="SE"'))}</div>`,
+          field('email', 'Sourcing or compliance contact', input('email', '', 'email')),
+        ].join(''),
+        submit: 'Add buyer',
+      };
+    },
+    command: (v) => ['buyer.add', { id: makeId('B').toLowerCase(), v }],
+  },
+
+  claim: {
+    render(db) {
+      const me = actingAs();
+      const lots = db.lots.filter((l) => l.orgId === me && l.unit === 'pcs' && lotRemaining(db, l) > 0);
+      const buyers = db.orgs.filter((o) => o.tier === 'buyer');
+      if (!lots.length) return { title: 'New claim', intro: 'You have no garments left to claim. Record a cutting and sewing run first.', body: '', submit: null };
+      if (!buyers.length) return { title: 'New claim', intro: 'Add your buyer first (Claims → Add buyer).', body: '', submit: null };
+      const l = lots[0];
+      return {
+        title: 'New claim',
+        intro: 'What you will state to your buyer. It is released only when every check back to the waste passes.',
+        body: [
+          field('lotId', 'Garments', select('lotId', lots.map((x) => [x.id, `${x.id} · ${x.spec || 'garments'} · ${num(lotRemaining(db, x))} pcs left at ${x.recycledPct}%`]), l.id)),
+          `<div class="field-row">${field('buyer', 'Buyer', select('buyer', buyers.map((b) => [b.id, b.name]), buyers[0].id))}${field('buyerPo', 'Buyer’s purchase order', input('buyerPo', '', 'text', 'required'))}</div>`,
+          `<div class="field-row">${field('pcs', 'Pieces', input('pcs', '', 'number', 'step="1" min="1" required'))}${field('recycledPct', 'Recycled % to claim', input('recycledPct', l.recycledPct, 'number', 'step="any" min="0"'), 'Not above the product’s share; at least 20% under GRS')}</div>`,
+          field('date', 'Date', input('date', today(), 'date')),
+          field('text', 'Claim wording (optional)', input('text', '', 'text', 'placeholder="Made with 40% recycled cotton (pre-consumer)"')),
+        ].join(''),
+        submit: 'Create claim',
+      };
+    },
+    command: (v) => ['claim.create', { id: makeId('C'), v }],
+  },
+
+  product: {
+    render(db, p) {
+      const l = lot(db, p.lot);
+      const pr = l.product || {};
+      const sizes = (pr.sizes || []).map((x) => `${x.size}:${x.share}`).join(', ') || 'S:15, M:35, L:35, XL:15';
+      return {
+        title: `Product sheet for ${l.id}`,
+        intro: 'What the buyer sees in the evidence pack. Only the fabric weight carries the recycled claim.',
+        body: [
+          `<div class="field-row">${field('name', 'Product name', input('name', pr.name || '', 'text', 'required placeholder="Everyday Crew Tee"'))}${field('style', 'Style number', input('style', pr.style || ''))}</div>`,
+          `<div class="field-row">${field('brand', 'Brand', input('brand', pr.brand || ''))}${field('season', 'Season', input('season', pr.season || '', 'text', 'placeholder="SS27"'))}</div>`,
+          `<div class="field-row">${field('colourName', 'Colour', input('colourName', pr.colour?.name || ''))}${field('colourCode', 'Colour code', input('colourCode', pr.colour?.code || ''))}${field('colourHex', 'Swatch', input('colourHex', pr.colour?.hex || '#d9ccb1', 'color'))}</div>`,
+          field('fabric', 'Fabric', input('fabric', pr.fabric || '', 'text', 'placeholder="160 g/m² single jersey, Ne 20/1 OE yarn"')),
+          field('construction', 'Construction', input('construction', pr.construction || '')),
+          `<div class="field-row">${field('garmentKg', 'Garment weight (kg/pc)', input('garmentKg', l.kgPerUnit ?? '', 'number', 'step="any" required'))}${field('fibreKg', 'Fabric in the garment (kg/pc)', input('fibreKg', l.fibreKgPerUnit ?? '', 'number', 'step="any" required'), 'Body and rib; excludes thread and labels')}</div>`,
+          field('sizes', 'Size ratio', input('sizes', sizes), 'Size:percent, comma-separated'),
+          `<div class="field-row">${field('hs', 'HS code', input('hs', pr.hs || '6109.10'))}${field('countryOfOrigin', 'Country of origin', input('countryOfOrigin', pr.countryOfOrigin || 'Bangladesh'))}</div>`,
+          field('care', 'Care', input('care', pr.care || '')),
+        ].join(''),
+        submit: 'Save product sheet',
+      };
+    },
+    command: (v, p) => ['product.save', { lot: p.lot, v }],
   },
 
   goodsin: {

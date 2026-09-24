@@ -35,6 +35,13 @@ export const isTenant = () => !!view && me?.orgId === view.tenantId;
 export const session = () => me;
 export const mode = () => T?.mode;
 export const transport = () => T;
+export async function connectOnly() { T = T || await connect(); return T; }
+export const uploadFile = (file) => T.uploadFile(file);
+export const fileUrl = (f, packToken) => T.fileUrl(f, packToken);
+const seenKey = () => `threadback.seen.${T?.mode}.${me?.orgId}`;
+export const lastSeen = () => Number(ls.get(seenKey()) || 0);
+export function markSeen() { const top = feed[0]?.seq || 0; if (top > lastSeen()) { ls.set(seenKey(), String(top)); emit({}); } }
+export const unreadCount = () => feed.filter((e) => e.seq > lastSeen() && e.actor !== me?.orgId && e.actor !== 'system').length;
 export const syncStatus = () => ({ status, pending: outbox.length, rejected: rejected.length });
 export const pending = () => outbox;
 export const rejectedList = () => rejected;

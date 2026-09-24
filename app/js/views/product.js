@@ -3,7 +3,7 @@
 import { RULES, STANDARD, TIERS } from '../engine/rules.js';
 import { org, lot, fibreKgOf, kgOf } from '../engine/db.js';
 import { traceLot, chainSteps, claimStatus } from '../engine/trace.js';
-import { esc, num, pill, tierIcon } from '../ui.js';
+import { esc, num, pill, tierIcon, btn } from '../ui.js';
 import { backLink } from './common.js';
 import { isTenant, actingAs } from '../store.js';
 
@@ -46,7 +46,14 @@ export function productThumb(l, size = 'sm') {
 
 export function productView(db, lotId) {
   const l = lot(db, lotId);
-  if (!l || !l.product) return '<p class="empty">No product sheet for this lot.</p>';
+  if (!l || l.unit !== 'pcs') return '<p class="empty">No product sheet for this lot.</p>';
+  const canEdit = isTenant() || actingAs() === l.orgId;
+  if (!l.product) {
+    return `${backLink('#claims', 'Claims')}
+      <header class="page-head"><div><p class="eyebrow">Lot <span class="mono">${esc(l.id)}</span> · ${num(l.qty)} pcs</p><h1>No product sheet yet</h1>
+      <p class="muted">Add the style, colour, garment weight and fabric weight. The fabric weight is what carries the recycled claim; thread and labels do not.</p></div></header>
+      ${canEdit ? `<p>${btn('Add product sheet', 'form', { form: 'product', lot: l.id }, 'btn-primary')}</p>` : ''}`;
+  }
   const p = l.product;
   const maker = org(db, l.orgId);
   const claim = db.claims.find((c) => c.lotId === l.id);
@@ -71,7 +78,7 @@ export function productView(db, lotId) {
         <div class="sample-card">${p.photo ? `<img class="product-photo" src="${p.photo}" alt="${esc(p.name)} in ${esc(p.colour.name)}">` : teeSvg(p.colour.hex, { title: `${p.name}, front flat sketch in ${p.colour.name}` })}
           <span class="swatch" style="background:${esc(p.colour.hex)}" aria-hidden="true"></span></div>
         <figcaption>${p.photo ? 'Product photo' : 'Front flat sketch'} · ${esc(p.colour.name)} <span class="mono">${esc(p.colour.code)}</span></figcaption>
-        ${editable ? `<label class="btn btn-small" for="product-photo">${p.photo ? 'Replace photo' : 'Upload product photo'}</label>
+        ${editable ? `${btn('Edit product sheet', 'form', { form: 'product', lot: l.id }, 'btn-small')}<label class="btn btn-small" for="product-photo">${p.photo ? 'Replace photo' : 'Upload product photo'}</label>
           <input class="sr" id="product-photo" type="file" accept="image/*" data-product-photo="${esc(l.id)}">
           ${p.photo ? `<button type="button" class="btn btn-small btn-quiet" data-action="product-photo-clear" data-lot="${esc(l.id)}">Use sketch</button>` : ''}` : ''}
       </figure>

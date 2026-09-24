@@ -39,7 +39,11 @@ In short:
 ```bash
 npm start     # real backend on http://localhost:4173 (Node 22.5+, no npm install)
 npm test      # engine, command and server tests
+npm run setup -- --company "…" --name "…" --email … --password …   # a real network, no demo data
+npm run backup                                                    # consistent copy of the ledger
 ```
+
+To put it online for a pilot (Docker, HTTPS, notifications, backups), follow [docs/DEPLOY.md](docs/DEPLOY.md).
 
 - **Server mode (`npm start`).** It uses SQLite (`data/threadback.db`), accounts with sessions, and live updates over Server-Sent Events. Demo accounts use the password `demo`: sign in as the manufacturer on a laptop and as the waste trader on a phone to watch data flow. `DEMO=0` disables the demo accounts; `PORT` and `DB_FILE` configure the rest.
 - **Offline.** Once opened, the app is cached on the phone. Changes wait in an outbox and are sent in order when the connection returns.
@@ -62,20 +66,26 @@ Planted gaps in the demo data (the **Demo guide** walks through fixing them):
 | GET | `/api/ledger` · `/api/ledger/verify` | Ledger entries; hash-chain check |
 | GET | `/api/stream` | Live entries (Server-Sent Events) |
 | GET/POST | `/api/invite/:token` · `/api/join` | Accept an invitation |
+| POST · GET | `/api/files` · `/api/files/:sha` | Upload a document scan (fingerprint recorded in the ledger); open one you may see |
+| GET | `/api/pack/:token` | A shared evidence pack, readable without an account |
+| POST | `/api/password` | Change password |
+| GET | `/api/outbox` | Notifications sent (manufacturer only) |
 
 ## Layout
 
 ```
 server/            index.js (HTTP, API, live stream) · ledger.js (SQLite, hash chain) · auth.js
+                   files.js (scans) · notify.js (notifications) · setup.js · backup.js
 app/
   js/engine/       pure logic shared by phone and server:
-                   commands, ledgerlog, visibility, flow, checks, ledger, trace, declaration, rules
+                   commands, ledgerlog, visibility, flow, pack, checks, ledger, trace, declaration, rules
   js/store.js      the app's state + offline outbox
   js/transport.js  talks to the server, or runs the ledger in the browser (hosted demo)
   js/views/        screens: manufacturer, supplier and recycler portals, waste declaration,
-                   product sheet, material flow, ledger, how it works, sign-in
+                   product sheet, claims and evidence pack, material flow, inbox, ledger, sign-in
   sw.js            offline app shell
 docs/CONCEPT.md    the concept on one page
 docs/ARCHITECTURE.md  data model, check catalogue, roadmap
+docs/DEPLOY.md     putting it online for the pilot
 test/              engine, commands, server
 ```

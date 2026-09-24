@@ -32,7 +32,7 @@ export function overview(db) {
         <div class="claim-state">${s.status === 'ready' ? pill('pass', 'Ready to release') : pill('fail', 'Claim held')}</div>
       </div>
       ${checkList(db, s.checks, false)}
-      <div class="row-actions"><a class="btn btn-primary" href="#chain.${esc(c.id)}">Open the chain</a></div>
+      <div class="row-actions"><a class="btn btn-primary" href="#chain.${esc(c.id)}">Open the chain</a><a class="btn" href="#pack.${esc(c.id)}">Evidence pack</a></div>
     </article>`;
   }).join('');
 
@@ -71,7 +71,12 @@ export function overview(db) {
       <div><dt>Open gaps</dt><dd>${openGaps.length}<span class="muted"> with suppliers</span></dd></div>
       <div><dt>Failing, no gap raised</dt><dd>${failing.filter((c) => !db.gaps.some((g) => g.key === c.key && g.status === 'open')).length}</dd></div>
     </dl>
-    ${claims}
+    ${claims || `<section class="empty-start"><h2>No claims yet</h2><ol>
+      <li>Add your scope certificate on your <a class="link" href="#org.${esc(db.tenantId)}">company page</a>.</li>
+      <li><strong>Invite your fabric mill.</strong> Each supplier then invites the next one up, down to the waste trader.</li>
+      <li>When fabric arrives, record your cutting run and add a product sheet.</li>
+      <li>Add your EU buyer and create a claim. Its evidence pack builds itself as suppliers enter data.</li></ol>
+      <div class="row-actions">${btn(`${icon('mail')} Invite supplier`, 'form', { form: 'invite' }, 'btn-primary')}${btn('Add buyer', 'form', { form: 'buyer' })}</div></section>`}
     <section class="section">
       <div class="section-head"><h2>Data quality by tier</h2><p class="muted">Most upstream on the left. Bars show how much each supplier has filed.</p></div>
       <div class="tier-strip">${strip}</div>
@@ -92,6 +97,7 @@ export function overview(db) {
 
 export function chain(db, claimId) {
   const c = db.claims.find((x) => x.id === claimId) || db.claims[0];
+  if (!c) return '<header class="page-head"><div><p class="eyebrow">Chain of custody</p><h1>No claims yet</h1><p class="muted">The chain is drawn for a claim. Create one on the <a class="link" href="#claims">Claims</a> page once you have produced garments.</p></div></header>';
   const s = claimStatus(db, c);
   const tree = traceLot(db, c.lotId);
   const steps = chainSteps(tree);
@@ -245,4 +251,32 @@ export function gaps(db, focus, visible) {
       ${open.length ? open.map((g) => gapCard(db, g)).join('') : '<p class="empty">Nothing waiting on suppliers.</p>'}</section>
     <section class="section"><div class="section-head"><h2>Resolved (${done.length})</h2></div>
       ${done.length ? done.map((g) => gapCard(db, g)).join('') : '<p class="empty">No resolved gaps yet.</p>'}</section>`;
+}
+
+// ---------------------------------------------------------------- claims
+
+export function claims(db) {
+  const rows = db.claims.map((c) => {
+    const l = lot(db, c.lotId);
+    const s = claimStatus(db, c);
+    return `<tr>
+      <td>${productThumb(l)}</td>
+      <td><a class="rowlink" href="#pack.${esc(c.id)}">${esc(c.text)}</a><div class="muted small"><span class="mono">${esc(c.id)}</span> · ${esc(l.spec || l.id)} · ${date(c.date)}</div></td>
+      <td>${esc(org(db, c.buyer)?.name || '—')}<div class="muted small">PO ${esc(c.buyerPo)}</div></td>
+      <td class="num">${num(c.pcs)}</td><td class="num">${c.recycledPct}%</td>
+      <td>${s.status === 'ready' ? pill('pass', 'Ready') : pill('fail', 'Held')}${c.share ? `<div class="muted small">Shared since ${date(c.share.since)}</div>` : ''}</td>
+      <td class="nowrap"><a class="btn btn-small" href="#chain.${esc(c.id)}">Chain</a> <a class="btn btn-small btn-primary" href="#pack.${esc(c.id)}">Evidence pack</a></td></tr>`;
+  }).join('');
+  const buyers = db.orgs.filter((o) => o.tier === 'buyer');
+  return `
+    <header class="page-head">
+      <div><p class="eyebrow">Claims to your buyers</p><h1>Claims and evidence packs</h1>
+      <p class="muted">A claim is released when every check back to the waste passes. Its evidence pack holds every certificate, document, declaration and ledger entry behind it, ready to send to the buyer or the certification body.</p></div>
+      <div class="head-actions">${btn(`${icon('plus')} New claim`, 'form', { form: 'claim' }, 'btn-primary')}${btn('Add buyer', 'form', { form: 'buyer' })}</div>
+    </header>
+    ${rows ? `<div class="table-wrap"><table class="table"><thead><tr><th><span class="sr">Product</span></th><th>Claim</th><th>Buyer</th><th class="num">Pieces</th><th class="num">Recycled</th><th>Status</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : '<p class="empty">No claims yet. Record a cutting run, then create a claim for your buyer.</p>'}
+    <section class="section"><div class="section-head"><h2>Buyers</h2></div>
+      ${buyers.length ? `<ul class="plain">${buyers.map((b) => `<li>${tierIcon('buyer')} <strong>${esc(b.name)}</strong> <span class="muted small">${esc(b.city)} ${esc(b.country)}${b.email ? ` · ${esc(b.email)}` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">No buyers yet.</p>'}
+    </section>`;
 }

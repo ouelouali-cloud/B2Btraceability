@@ -21,8 +21,11 @@ Rules applied to all of it: quantities agree within ±2%, recycled % within ±0.
 2. **Watch the chain fill in.** *Material flow* shows kg moving live; *Chain* shows every handoff for a claim with its checks.
 3. **Raise gaps.** A failing check shows a *Raise gap* button. The supplier gets the request in its portal. The gap closes by itself when the data is fixed.
 4. **Record your own production.** *Correct production record* on your cutting run: pieces, fabric per piece, garment weight.
-5. **Release the claim.** The overview shows *Claim held* until every check back to the waste passes, then *Ready to release*.
-6. **Prove it.** *Ledger → Check the chain* shows the history is intact.
+5. **Add a product sheet** for each style: name, colour, garment weight and the fabric weight that carries the claim.
+6. **Add your buyer and create the claim.** *Claims → Add buyer*, then *New claim*: garments, buyer's PO, pieces, recycled %.
+7. **Release the claim.** It shows *Held* until every check back to the waste passes, then *Ready*.
+8. **Send the evidence pack.** *Claims → Evidence pack* holds every certificate, document, scan, declaration and ledger entry behind the claim. *Share with buyer* creates a read-only link (stop sharing any time); *Download pack* or *Print* for the certification body.
+9. **Prove it.** *Ledger → Check the chain* shows the history is intact.
 
 ## Waste trader (phone, works offline)
 

@@ -228,7 +228,8 @@ pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--surface); bo
             <li>Watch <em>Material flow</em> fill in live; open <em>Chain</em> for the handoffs behind a claim.</li>
             <li>Raise gaps on failing checks; they close when the supplier fixes the data.</li>
             <li>Record cutting: pieces, fabric per piece, garment weight.</li>
-            <li>Release the claim when it shows <em>Ready to release</em>; prove history with <em>Check the chain</em>.</li>
+            <li>Add a product sheet, add your buyer, create the claim.</li>
+            <li>When it shows <em>Ready</em>, send the evidence pack: share a read-only link with the buyer, or download and print it for the certification body.</li>
           </ol></article>
         <article class="role"><h3>Waste trader <span class="tag">phone · offline</span></h3>
           <ol>
@@ -292,7 +293,8 @@ pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--surface); bo
       <div class="cols">
         <div class="card"><h3>Server</h3><ul>
           <li>Node 22.5+, zero dependencies, SQLite built in</li>
-          <li>Accounts, sessions, invitation links</li>
+          <li>Accounts, sessions, invitation links, password change</li>
+          <li>Login throttling, 30-day sessions, security headers</li>
           <li>Visibility enforced on the server</li>
           <li>Live updates by Server-Sent Events</li>
         </ul></div>
@@ -308,8 +310,11 @@ pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--surface); bo
           <li>Changes the server refuses are shown, never dropped</li>
         </ul></div>
       </div>
-      <pre>npm start   # server on http://localhost:4173, demo password: demo
-npm test    # engine, commands, server</pre>
+      <pre>npm start       # server on http://localhost:4173, demo password: demo
+npm test        # engine, commands, server
+npm run setup   # a real network for one manufacturer, no demo data
+npm run backup  # consistent copy of the ledger
+# Online: Docker + HTTPS + webhook notifications, see docs/DEPLOY.md</pre>
       <div class="table-wrap"><table>
         <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
         <tbody>
@@ -319,6 +324,8 @@ npm test    # engine, commands, server</pre>
           <tr><td><code>GET /api/ledger</code>, <code>/verify</code></td><td>Ledger lines; hash-chain check</td></tr>
           <tr><td><code>GET /api/stream</code></td><td>Live lines</td></tr>
           <tr><td><code>/api/invite/:token</code>, <code>/api/join</code></td><td>Accept an invitation</td></tr>
+          <tr><td><code>POST /api/files</code></td><td>Upload a scan; its SHA-256 goes into the ledger</td></tr>
+          <tr><td><code>GET /api/pack/:token</code></td><td>Shared evidence pack, no account needed</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -327,19 +334,22 @@ npm test    # engine, commands, server</pre>
       <p class="eyebrow">Plan</p>
       <h2>Next steps</h2>
       <div class="cols">
-        <div class="card card-g"><h3>Built</h3><ul>
+        <div class="card card-g"><h3>Built (MVP)</h3><ul>
           <li>Chain, checks, gaps, mass balance</li>
           <li>Waste declaration on phone, offline, Bangla labels</li>
           <li>Recycler goods-in and countersigning</li>
-          <li>Real backend, hash-linked ledger, live flow</li>
-          <li>Product sheet and GRS claim rules</li>
+          <li>Backend, hash-linked ledger, live flow, inbox</li>
+          <li>Claims, evidence pack, buyer share links</li>
+          <li>Document scans with fingerprints in the ledger</li>
+          <li>Product sheets and GRS claim rules</li>
+          <li>Notifications by webhook; setup, backups, Docker</li>
         </ul></div>
         <div class="card"><h3>For the pilot</h3><ol>
-          <li>Evidence pack export per claim</li>
-          <li>Put the server online (EU region)</li>
-          <li>Email and SMS invitations and gap alerts</li>
-          <li>Document scan storage</li>
-          <li>Five EU brand interviews</li>
+          <li>Put the server online in an EU region (docs/DEPLOY.md)</li>
+          <li>Connect email and SMS to the notification webhook</li>
+          <li>Onboard one exporter and its recycler and traders</li>
+          <li>Five EU brand interviews, showing a real evidence pack</li>
+          <li>Next build: reading scans automatically (OCR)</li>
         </ol></div>
         <div class="card card-r"><h3>Open questions</h3><ul>
           <li>Who pays: brand, manufacturer or certification body?</li>

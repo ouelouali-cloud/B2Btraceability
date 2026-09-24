@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "setup": "node --disable-warning=ExperimentalWarning server/setup.js",
+    "backup": "node --disable-warning=ExperimentalWarning server/backup.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
   },
   "engines": {

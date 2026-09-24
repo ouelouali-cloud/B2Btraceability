@@ -17,6 +17,8 @@ export function checkPassword(pw, stored) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export const SESSION_DAYS = 30;
+
 export class Auth {
   constructor(ledger) { this.sql = ledger.sql; }
 
@@ -45,8 +47,18 @@ export class Auth {
 
   fromToken(token) {
     if (!token) return null;
-    const s = this.sql.prepare('SELECT user_id FROM sessions WHERE token_hash = ?').get(sha256(token));
-    return s ? this.user(s.user_id) : null;
+    const s = this.sql.prepare('SELECT user_id, created_at FROM sessions WHERE token_hash = ?').get(sha256(token));
+    if (!s) return null;
+    if (Date.now() - new Date(s.created_at) > SESSION_DAYS * 86400000) { this.logout(token); return null; }
+    return this.user(s.user_id);
+  }
+
+  changePassword(userId, current, next) {
+    const u = this.sql.prepare('SELECT pass FROM users WHERE id = ?').get(userId);
+    if (!u || !checkPassword(String(current || ''), u.pass)) return 'Your current password is wrong.';
+    if (String(next || '').length < 8) return 'The new password must have at least 8 characters.';
+    this.sql.prepare('UPDATE users SET pass = ? WHERE id = ?').run(hashPassword(next), userId);
+    return '';
   }
 
   logout(token) {

@@ -16,6 +16,8 @@ import * as S from './views/supplier.js';
 import * as W from './views/declare.js';
 import * as X from './views/system.js';
 import { productView } from './views/product.js';
+import { packView, packFile } from './views/pack.js';
+import { evidencePack } from './engine/pack.js';
 
 const view = document.getElementById('view');
 const nav = document.getElementById('nav');
@@ -32,6 +34,7 @@ let pendingRender = false;
 // ---------------------------------------------------------------- start-up
 
 async function boot() {
+  if (location.hash.startsWith('#share.')) return showShared(location.hash.slice(7));
   let ok = false;
   try {
     ok = await store.init();
@@ -42,6 +45,21 @@ async function boot() {
   if (location.hash.startsWith('#join.') && store.mode() === 'server') return showJoin(location.hash.slice(6));
   if (!ok) return showLogin();
   start();
+}
+
+// A buyer opening a shared evidence pack: no account, read-only.
+async function showShared(token) {
+  document.body.classList.add('auth-mode', 'shared-mode');
+  nav.innerHTML = '';
+  topRight.innerHTML = '<span class="muted small">Shared evidence pack · read-only</span>';
+  view.innerHTML = '<p class="empty">Loading the evidence pack…</p>';
+  try {
+    const t = await store.connectOnly();
+    const pack = await t.fetchPack(token);
+    view.innerHTML = packView(pack, { mode: 'public', fileUrl: (f) => t.fileUrl(f, token) });
+  } catch (e) {
+    view.innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+  }
 }
 
 function start() {
@@ -117,13 +135,13 @@ function canSee(kind, id) {
 
 function navItems() {
   if (isTenant()) {
-    return [['overview', 'Overview'], ['flow', 'Material flow'], ['chain', 'Chain'], ['suppliers', 'Suppliers'], ['ledger', 'Mass balance'], ['gaps', 'Gaps'], ['ledgerlog', 'Ledger'], ['concept', 'How it works']];
+    return [['overview', 'Overview'], ['claims', 'Claims'], ['flow', 'Material flow'], ['chain', 'Chain'], ['suppliers', 'Suppliers'], ['ledger', 'Mass balance'], ['gaps', 'Gaps'], ['inbox', 'Inbox'], ['ledgerlog', 'Ledger'], ['concept', 'How it works']];
   }
   const me = org(db(), actingAs());
   if (me.status === 'invited') return [['tasks', 'Invitation'], ['concept', 'How it works']];
-  if (me.tier === 'waste') return [['tasks', 'My batches'], ['shipments', 'Shipments'], ['concept', 'How it works']];
-  if (me.tier === 'recycler') return [['tasks', 'Goods-in'], ['production', 'Production'], ['shipments', 'Shipments'], ['flow', 'Material flow'], ['ledger', 'Mass balance'], ['ledgerlog', 'Ledger'], [`org.${me.id}`, 'Company']];
-  return [['tasks', 'My tasks'], ['shipments', 'Shipments'], ['production', 'Production'], ['flow', 'Material flow'], ['ledger', 'Mass balance'], ['ledgerlog', 'Ledger'], [`org.${me.id}`, 'Company']];
+  if (me.tier === 'waste') return [['tasks', 'My batches'], ['shipments', 'Shipments'], ['inbox', 'Inbox'], ['concept', 'How it works']];
+  if (me.tier === 'recycler') return [['tasks', 'Goods-in'], ['production', 'Production'], ['shipments', 'Shipments'], ['flow', 'Material flow'], ['ledger', 'Mass balance'], ['inbox', 'Inbox'], ['ledgerlog', 'Ledger'], [`org.${me.id}`, 'Company']];
+  return [['tasks', 'My tasks'], ['shipments', 'Shipments'], ['production', 'Production'], ['flow', 'Material flow'], ['ledger', 'Mass balance'], ['inbox', 'Inbox'], ['ledgerlog', 'Ledger'], [`org.${me.id}`, 'Company']];
 }
 
 // ---------------------------------------------------------------- render
@@ -146,7 +164,7 @@ function renderTopbar() {
   const who = store.mode() === 'demo'
     ? `<label class="acting"><span class="acting-label">Viewing as</span><select id="acting-as" aria-label="Viewing as company">${
       d.orgs.length && DEMO_USERS.map((u) => `<option value="${u.orgId}" ${u.orgId === actingAs() ? 'selected' : ''}>${esc(u.name)} · ${esc(org(d, u.orgId)?.name || u.orgId)}</option>`).join('')}</select></label>`
-    : `<span class="user-chip"><strong>${esc(me.name)}</strong><span class="muted">${esc(org(d, me.orgId)?.name || '')}</span></span><button type="button" class="btn btn-quiet btn-small" data-action="signout">Sign out</button>`;
+    : `<button type="button" class="user-chip" data-action="account" aria-label="Account and password"><strong>${esc(me.name)}</strong><span class="muted">${esc(org(d, me.orgId)?.name || '')}</span></button>`;
   topRight.innerHTML = `${sync}${who}<div class="top-actions">
     <button type="button" class="btn btn-quiet btn-small" data-action="guide">Demo guide</button>
     ${store.mode() === 'demo' || isTenant() ? '<button type="button" class="btn btn-quiet btn-small" data-action="reset">Reset demo</button>' : ''}</div>`;
@@ -163,7 +181,9 @@ function render() {
   const openCount = d.gaps.filter((g) => g.status === 'open' && (isTenant() || g.owner === me)).length;
   nav.innerHTML = navItems().map(([k, label]) => {
     const active = name === k.split('.')[0] && (!k.includes('.') || id === k.split('.')[1]);
-    const badge = (k === 'gaps' || k === 'tasks') && openCount ? `<span class="nav-badge">${openCount}</span>` : '';
+    const unread = store.unreadCount();
+    const badge = (k === 'gaps' || k === 'tasks') && openCount ? `<span class="nav-badge">${openCount}</span>`
+      : k === 'inbox' && unread ? `<span class="nav-badge nav-badge-info">${unread}</span>` : '';
     return `<a href="#${k}" class="${active ? 'active' : ''}" ${active ? 'aria-current="page"' : ''}>${label}${badge}</a>`;
   }).join('');
 
@@ -176,6 +196,9 @@ function render() {
     case 'flow': html = X.flowView(d, store.liveFeed(), sys); break;
     case 'ledgerlog': html = X.ledgerLogView(ledgerPage.entries, ledgerPage.verify, !ledgerPage.entries); loadLedger(); break;
     case 'concept': html = X.conceptView(); break;
+    case 'claims': html = isTenant() ? T.claims(d) : denied; break;
+    case 'pack': html = isTenant() ? renderPack(id) : denied; break;
+    case 'inbox': html = X.inboxView(store.liveFeed(), me, store.lastSeen()); setTimeout(() => store.markSeen(), 1500); break;
     case 'chain': html = isTenant() ? T.chain(d, id) : denied; break;
     case 'suppliers': html = isTenant() ? T.suppliers(d) : denied; break;
     case 'ledger': html = canSee('ledger', id) ? T.ledgerView(d, id || (isTenant() ? '' : me), visibleOrgs) : denied; break;
@@ -195,6 +218,65 @@ function render() {
   view.innerHTML = html;
   initSignaturePad();
   if (name === 'gaps' && id) document.getElementById(`gap-${id}`)?.scrollIntoView({ block: 'start' });
+}
+
+// The pack needs the ledger entries and a chain check; load them, then render.
+const packCache = { id: null, seq: -1, pack: null, loading: false };
+function renderPack(id) {
+  const seq = store.liveFeed()[0]?.seq ?? 0;
+  if (packCache.id === id && packCache.seq === seq && packCache.pack) {
+    const c = db().claims.find((x) => x.id === id);
+    return packView(packCache.pack, { mode: 'app', fileUrl: (f) => store.fileUrl(f), shared: c?.share, canShare: true });
+  }
+  if (!db().claims.some((x) => x.id === id)) return '<p class="empty">No claim with that reference.</p>';
+  loadPack(id, seq);
+  return '<p class="empty">Building the evidence pack…</p>';
+}
+async function loadPack(id, seq) {
+  if (packCache.loading) return;
+  packCache.loading = true;
+  try {
+    const t = store.transport();
+    const [entries, verify] = await Promise.all([t.ledger().catch(() => []), t.verify().catch(() => null)]);
+    packCache.pack = evidencePack(db(), id, { entries, verify });
+    packCache.id = id;
+    packCache.seq = seq;
+  } finally {
+    packCache.loading = false;
+  }
+  if (route().name === 'pack') render();
+}
+
+function shareUrl(token) {
+  return `${location.origin}${location.pathname}#share.${token}`;
+}
+function showShareLink(token) {
+  activeForm = null;
+  const demo = store.mode() === 'demo';
+  modal.innerHTML = `<div class="dialog-form"><header class="dialog-head"><h2>Share with your buyer</h2><button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></header>
+    <p class="dialog-intro">Anyone with this link can read the evidence pack for this claim, including the scans, without an account. They cannot change anything. Stop sharing at any time.${demo ? ' In the hosted demo the link opens in this browser only; on the server it works for anyone.' : ''}</p>
+    <div class="dialog-body"><input id="invite-url" readonly value="${esc(shareUrl(token))}"><div class="row-actions"><button type="button" class="btn btn-primary" data-action="copy-invite">Copy link</button><a class="btn" href="#share.${esc(token)}" target="_blank" rel="noopener">Open as the buyer sees it</a></div></div></div>`;
+  showModal();
+}
+function randomToken() {
+  const b = new Uint8Array(24);
+  crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function downloadPack(id) {
+  const pack = packCache.id === id ? packCache.pack : null;
+  if (!pack) return toast('Open the pack first.');
+  let css = '';
+  try { css = await (await fetch('styles.css')).text(); } catch { /* keep going without styles */ }
+  const html = packFile(pack, css, (f) => new URL(store.fileUrl(f), location.href).href);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = `evidence-pack-${id}.html`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  return toast('Evidence pack downloaded. It opens in any browser and carries its data for machines.');
 }
 
 let ledgerSeq = -1;
@@ -271,10 +353,11 @@ function formValues(form) {
   return v;
 }
 
-modal.addEventListener('submit', (e) => {
+modal.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!activeForm) return;
   const form = e.target;
+  if (form.dataset.form === 'password') return changePassword(form);
+  if (!activeForm) return;
   const err = form.querySelector('#form-error');
   const missing = [...form.querySelectorAll('[required]')].find((el) => !el.value.trim());
   if (missing) {
@@ -284,8 +367,10 @@ modal.addEventListener('submit', (e) => {
     return;
   }
   const { name, params } = activeForm;
+  const submitBtn = form.querySelector('button[type=submit]');
   try {
-    const [cmd, payload] = FORMS[name].command(formValues(form), params, db());
+    submitBtn.disabled = true;
+    const [cmd, payload] = await FORMS[name].command(formValues(form), params, db(), form);
     const r = send(cmd, payload);
     closeForm();
     afterSend(r);
@@ -293,8 +378,31 @@ modal.addEventListener('submit', (e) => {
   } catch (ex) {
     err.textContent = ex.message;
     err.hidden = false;
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
+
+function showAccount() {
+  activeForm = null;
+  const me = store.session();
+  modal.innerHTML = `<form class="dialog-form" data-form="password" novalidate><header class="dialog-head"><h2>${esc(me.name)}</h2><button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></header>
+    <p class="dialog-intro">${esc(me.email)} · ${esc(org(db(), me.orgId)?.name || '')}</p>
+    <div class="dialog-body">
+      <label class="field" for="pw-current"><span class="field-label">Current password</span><input id="pw-current" name="current" type="password" autocomplete="current-password"></label>
+      <label class="field" for="pw-next"><span class="field-label">New password (8+ characters)</span><input id="pw-next" name="next" type="password" autocomplete="new-password"></label>
+    </div><p class="form-error" id="form-error" hidden></p>
+    <footer class="dialog-foot"><button type="button" class="btn btn-quiet" data-action="signout">Sign out</button><button type="submit" class="btn btn-primary">Change password</button></footer></form>`;
+  showModal();
+}
+async function changePassword(form) {
+  const err = form.querySelector('#form-error');
+  try {
+    await store.transport().changePassword(form.elements.current.value, form.elements.next.value);
+    closeForm();
+    toast('Password changed');
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+}
 
 function showInvite(inv) {
   const url = new URL(inv.url, location.href).href;
@@ -490,7 +598,20 @@ document.addEventListener('click', async (e) => {
       case 'discard': store.discard(b.dataset.id); return showOutbox();
       case 'flush': await store.flush(); return showOutbox();
       case 'guide': guide.hidden = !guide.hidden; renderGuide(); return undefined;
-      case 'signout': return store.logout();
+      case 'signout': closeForm(); return store.logout();
+      case 'account': return showAccount();
+      case 'pack-print': return window.print();
+      case 'pack-download': return downloadPack(b.dataset.claim);
+      case 'pack-link': return showShareLink(db().claims.find((x) => x.id === b.dataset.claim)?.share?.token);
+      case 'pack-share': {
+        const token = randomToken();
+        afterSend(send('claim.share', { claim: b.dataset.claim, token }), 'Share link created');
+        packCache.seq = -1;
+        return showShareLink(token);
+      }
+      case 'pack-unshare':
+        packCache.seq = -1;
+        return afterSend(send('claim.unshare', { claim: b.dataset.claim }), 'Stopped sharing. The old link no longer works.');
       case 'demo-login': {
         const f = view.querySelector('form[data-form="login"]');
         f.elements.email.value = b.dataset.email;
@@ -560,12 +681,15 @@ function renderGuide() {
     <li>${demo ? 'Open this page in a <strong>second tab</strong> and set it to <strong>GreenFibre Recycling</strong>.' : 'Sign in as <strong>Kamal Hossain (GreenFibre Recycling)</strong> on a second device.'} Everything either side enters appears in the other at once.</li>
     <li>As <strong>Rahman Jhut Traders</strong> (best on a phone): ${demo ? 'tap the <em>Live</em> button and switch on <em>Simulate no connection</em>.' : 'switch the phone to flight mode.'} Continue the L-W1 declaration: Fatullah Garments collected 22 Jun 2026; add Siddhirganj Knitwear, 1,200 kg, 27 Jun; tick “no printed pieces”; sign. Then reconnect: the saved changes are sent in order.</li>
     <li>As <strong>GreenFibre Recycling</strong>: countersign T1 in the goods-in screen, and book goods-in for L-W2 (for example 3,760 kg, moisture 6%). Watch the flow update.</li>
-    <li>As <strong>Meghna Spinning Mills</strong>, correct the T3 packing list to 3,000 kg net. As <strong>Sonar Apparel</strong>, correct P4 to 13,500 pieces. The claim is released. Open <em>Ledger</em> and check the chain.</li>
+    <li>As <strong>Meghna Spinning Mills</strong>, correct the T3 packing list to 3,000 kg net (attach a scan if you like). As <strong>Sonar Apparel</strong>, correct P4 to 13,500 pieces. The claim is released. Open <em>Ledger</em> and check the chain.</li>
+    <li>As <strong>Sonar Apparel</strong>, open <em>Claims → Evidence pack</em>: everything behind the claim in one document. <em>Share with buyer</em> gives a read-only link for the EU buyer; <em>Download pack</em> or print it for the certification body. Try <em>New claim</em> for a second buyer.</li>
   </ol>
   <p class="muted small">${demo ? 'This hosted demo runs the ledger inside your browser. Run the real server with npm start for accounts, a database and live updates across devices.' : 'Demo accounts use the password demo.'}</p>`;
 }
 
 window.addEventListener('hashchange', () => {
+  if (location.hash.startsWith('#share.')) return showShared(location.hash.slice(7));
+  if (document.body.classList.contains('shared-mode')) { location.reload(); return undefined; }
   if (location.hash.startsWith('#join.') && store.mode() === 'server' && !db()) return showJoin(location.hash.slice(6));
   if (!db()) return undefined;
   render();
