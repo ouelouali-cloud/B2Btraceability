@@ -1,0 +1,277 @@
+<title>Threadback in Brief</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground: #fbfbfa;
+  --surface: #ffffff;
+  --ink: #161a18;
+  --muted: #69706c;
+  --line: #e5e8e5;
+  --accent: #1f7a55;
+  --accent-soft: #e7f3ed;
+  --bad: #b3261e;
+  --bad-soft: #fbeae8;
+  --sans: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #111413; --surface: #181c1a; --ink: #e8ece9; --muted: #98a19c; --line: #2a302d;
+    --accent: #5fc79a; --accent-soft: #173027; --bad: #f08a80; --bad-soft: #3a1c19;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #111413; --surface: #181c1a; --ink: #e8ece9; --muted: #98a19c; --line: #2a302d;
+  --accent: #5fc79a; --accent-soft: #173027; --bad: #f08a80; --bad-soft: #3a1c19;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 880px; margin: 0 auto; padding-inline: 24px; }
+section { padding-block: 72px; border-top: 1px solid var(--line); }
+h1, h2 { font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5.5vw, 3.4rem); line-height: 1.08; }
+h2 { font-size: clamp(1.5rem, 3.2vw, 2rem); line-height: 1.2; }
+p { margin: 0; }
+.label { font: 500 0.75rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.lead { font-size: 1.2rem; color: var(--muted); max-width: 40ch; }
+.stack { display: grid; gap: 16px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* hero */
+.hero { padding-block: 96px 72px; display: grid; gap: 28px; }
+.hero .accent { color: var(--accent); }
+
+/* chain */
+.chain { list-style: none; margin: 32px 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; }
+.chain li { position: relative; display: grid; gap: 6px; padding: 16px 12px 0 0; border-top: 2px solid var(--ink); }
+.chain li::before { content: ''; position: absolute; top: -7px; left: 0; width: 12px; height: 12px; border-radius: 50%; background: var(--ground); border: 2px solid var(--ink); }
+.chain li.weak { border-top-color: var(--bad); }
+.chain li.weak::before { border-color: var(--bad); background: var(--bad); }
+.chain strong { font-weight: 600; font-size: 0.98rem; }
+.chain span { font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
+.chain .doc { font: 500 0.72rem var(--mono); color: var(--accent); }
+.chain li.weak .doc { color: var(--bad); }
+@media (max-width: 720px) {
+  .chain { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .chain li { border-top: 0; border-left: 2px solid var(--ink); padding: 0 0 22px 22px; }
+  .chain li::before { top: 4px; left: -7px; }
+  .chain li.weak { border-left-color: var(--bad); }
+}
+
+/* three questions */
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 32px; }
+.three div { display: grid; gap: 8px; align-content: start; }
+.three b { font-size: 1.1rem; font-weight: 600; }
+.three span { color: var(--muted); font-size: 0.95rem; }
+@media (max-width: 720px) { .three { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+
+/* cross-check */
+.handoff { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-size: 0.95rem; color: var(--muted); }
+.handoff b { color: var(--ink); font-weight: 600; }
+.table-wrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+thead th { font: 500 0.7rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+th[scope="row"] { font-weight: 500; }
+td.r, th.r { text-align: right; }
+td.bad { color: var(--bad); background: var(--bad-soft); font-weight: 600; }
+td.ok-flash { animation: settle 1.2s ease-out; }
+@keyframes settle { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { td.ok-flash { animation: none; } }
+
+.verdict { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-weight: 600; font-size: 0.92rem; }
+.pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.bad { color: var(--bad); background: var(--bad-soft); }
+.pill.ok { color: var(--accent); background: var(--accent-soft); }
+.verdict p { color: var(--muted); font-size: 0.95rem; flex: 1 1 280px; }
+button { font: 600 0.92rem var(--sans); padding: 10px 18px; border-radius: 8px; border: 1px solid var(--ink); background: var(--ink); color: var(--ground); cursor: pointer; }
+button.ghost { background: transparent; color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.rules { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.rules li { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
+.rules li span:last-child { color: var(--muted); text-align: right; }
+@media (max-width: 720px) { .rules { grid-template-columns: minmax(0, 1fr); } }
+
+/* inside a tier */
+.sums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 32px; }
+.sums div { display: grid; gap: 8px; align-content: start; }
+.sums .eq { font: 500 1rem var(--mono); line-height: 1.5; }
+.sums span { color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 720px) { .sums { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+
+/* data needed */
+.data { list-style: none; margin: 28px 0 0; padding: 0; }
+.data li { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 24px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.data li:last-child { border-bottom: 0; }
+.data b { font-weight: 600; }
+.data b small { display: block; font: 400 0.78rem var(--mono); color: var(--muted); margin-top: 2px; }
+.data span { color: var(--muted); font-size: 0.95rem; }
+.data li.weak b { color: var(--bad); }
+@media (max-width: 620px) { .data li { grid-template-columns: minmax(0, 1fr); } }
+
+/* outcome */
+.outcome { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 32px; }
+.outcome div { padding: 22px; border-radius: 12px; display: grid; gap: 8px; align-content: start; }
+.outcome .ok { background: var(--accent-soft); }
+.outcome .bad { background: var(--bad-soft); }
+.outcome b { font-size: 1.05rem; }
+.outcome .ok b { color: var(--accent); }
+.outcome .bad b { color: var(--bad); }
+.outcome span { font-size: 0.95rem; }
+@media (max-width: 620px) { .outcome { grid-template-columns: minmax(0, 1fr); } }
+
+footer { padding-block: 40px 64px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+</style>
+
+<main class="wrap">
+  <header class="hero">
+    <p class="label">Threadback</p>
+    <h1>Proof of recycled content, from cutting waste to <span class="accent">garment</span>.</h1>
+    <p class="lead">A shared ledger where every company in the chain records what it handled, and every handoff is cross-checked automatically.</p>
+  </header>
+
+  <section>
+    <div class="stack">
+      <p class="label">The problem</p>
+      <h2>The evidence breaks at the first step.</h2>
+      <p class="lead">Brands receive certificates from the garment factory. Nobody sees whether the waste at the start of the chain was ever real.</p>
+    </div>
+    <ol class="chain" aria-label="Supply chain">
+      <li class="weak"><strong>Waste trader</strong><span>Collects cutting waste from factories</span><span class="doc">no certificate</span></li>
+      <li><strong>Recycler</strong><span>Shreds it into fibre</span><span class="doc">GRS · TC</span></li>
+      <li><strong>Spinner</strong><span>Blends 40% recycled into yarn</span><span class="doc">GRS · TC</span></li>
+      <li><strong>Fabric mill</strong><span>Knits and dyes</span><span class="doc">GRS · TC</span></li>
+      <li><strong>Garment maker</strong><span>Cuts and sews</span><span class="doc">GRS · TC</span></li>
+      <li><strong>EU brand</strong><span>Makes the claim</span><span class="doc">needs proof</span></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="stack">
+      <p class="label">The idea</p>
+      <h2>One ledger answers three questions for every claim.</h2>
+    </div>
+    <div class="three">
+      <div><b>Origin</b><span>Where did the material come from? Every kilogram traced to a named factory, signed by the trader, confirmed by the recycler.</span></div>
+      <div><b>Documentation</b><span>Who handled it? At every handoff, the documents must tell the same story.</span></div>
+      <div><b>Mass balance</b><span>Do the kilograms add up? Nobody can ship more recycled content than they received.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="stack">
+      <p class="label">Cross-checking</p>
+      <h2>Every handoff: five sources, one story.</h2>
+      <p class="lead">Each document is read against the transaction certificate. Any value outside tolerance stops the claim.</p>
+    </div>
+    <p class="handoff"><b>Spinner → Fabric mill</b><span>3,000 kg of yarn, 40% recycled cotton</span><span class="num">5 Aug 2026</span></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Source</th><th>Issued by</th><th>Seller → buyer</th><th>Date</th><th class="r">Quantity</th><th class="r">Recycled</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Transaction certificate</th><td>Certification body</td><td>Meghna → Dhaka Knit</td><td class="num">9 Aug</td><td class="r num">3,000 kg</td><td class="r num">40%</td></tr>
+          <tr><th scope="row">Purchase order</th><td>Buyer</td><td>Meghna → Dhaka Knit</td><td class="num">28 Jul</td><td class="r num">3,000 kg</td><td class="r num">40%</td></tr>
+          <tr><th scope="row">Invoice</th><td>Seller</td><td>Meghna → Dhaka Knit</td><td class="num">5 Aug</td><td class="r num">3,000 kg</td><td class="r num">—</td></tr>
+          <tr><th scope="row">Packing list</th><td>Seller</td><td>Meghna → Dhaka Knit</td><td class="num">5 Aug</td><td class="r num bad" id="pl">3,180 kg</td><td class="r num">—</td></tr>
+          <tr><th scope="row">Goods received</th><td>Buyer's scale</td><td>at Dhaka Knit</td><td class="num">6 Aug</td><td class="r num">2,950 kg</td><td class="r num">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="verdict" aria-live="polite">
+      <span class="pill bad" id="verdict">Gap: quantities disagree</span>
+      <p id="explain">The packing list shows 180 kg more than the certificate, 6% over the 2% tolerance. It is gross weight, cones included. The spinner is asked to correct it.</p>
+      <button type="button" id="fix">Correct to net weight</button>
+    </div>
+
+    <ul class="rules" aria-label="Cross-check rules">
+      <li><span>Quantity</span><span>all sources within ±2%</span></li>
+      <li><span>Recycled share</span><span>TC = PO = lot, ±0.5 point</span></li>
+      <li><span>Parties</span><span>same registered names everywhere</span></li>
+      <li><span>Dates</span><span>TC after shipment, documents within 45 days</span></li>
+      <li><span>Certificate</span><span>scope certificate valid on the shipment date</span></li>
+      <li><span>Scope</span><span>product listed on the certificate</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="stack">
+      <p class="label">Inside each company</p>
+      <h2>Kilograms in must explain kilograms out.</h2>
+    </div>
+    <div class="sums">
+      <div><p class="label">Yield</p><p class="eq">10,000 kg in<br>→ 8,600 kg out<br>= 86%</p><span>Within the normal range for spinning (80–92%).</span></div>
+      <div><p class="label">Blend</p><p class="eq">3,985 kg recycled<br>÷ 10,000 kg total<br>= 39.9%</p><span>Supports the 40% declared on the yarn.</span></div>
+      <div><p class="label">Consumption</p><p class="eq">13,500 T-shirts<br>× 0.19 kg fabric<br>≤ 2,590 kg received</p><span>No garment without the fabric to make it.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="stack">
+      <p class="label">Data needed</p>
+      <h2>What each company provides.</h2>
+    </div>
+    <ul class="data">
+      <li class="weak"><b>Waste trader<small>per batch, by phone</small></b><span>Weighbridge slip · source factories with kg and collection dates · colour and fibre sort · no elastane or prints · signed declaration</span></li>
+      <li><b>Recycler<small>at goods-in</small></b><span>Gate weight and moisture · purchase order · trader's invoice · countersignature of the declaration</span></li>
+      <li><b>Every certified tier<small>per shipment</small></b><span>Transaction certificate · purchase order · invoice · net packing list · buyer's received weight · scans of each</span></li>
+      <li><b>Every certified tier<small>per production run</small></b><span>Input kg per delivery · output kg · virgin fibre added · production records</span></li>
+      <li><b>Garment maker<small>per style</small></b><span>Pieces · fabric per piece (marker) · garment weight · bill of materials</span></li>
+      <li><b>All<small>once</small></b><span>Scope certificate with validity and product scope</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="stack">
+      <p class="label">The result</p>
+      <h2>A claim is released only when the whole chain agrees.</h2>
+    </div>
+    <div class="outcome">
+      <div class="ok"><b>All checks pass</b><span>The claim is released with an evidence pack: every certificate, document, declaration and check, ready for the brand and the auditor.</span></div>
+      <div class="bad"><b>Any check fails</b><span>A request goes to the company that owns the data. It closes by itself once the data is corrected.</span></div>
+    </div>
+  </section>
+
+  <footer><span>Threadback · pilot: recycled cotton, Bangladesh, GRS</span><span>Every entry is permanent and tamper-evident.</span></footer>
+</main>
+
+<script>
+(function () {
+  const pl = document.getElementById('pl');
+  const verdict = document.getElementById('verdict');
+  const explain = document.getElementById('explain');
+  const btn = document.getElementById('fix');
+  let fixed = false;
+  btn.addEventListener('click', () => {
+    fixed = !fixed;
+    if (fixed) {
+      pl.textContent = '3,000 kg';
+      pl.classList.remove('bad');
+      pl.classList.add('ok-flash');
+      verdict.className = 'pill ok';
+      verdict.textContent = 'All sources agree';
+      explain.textContent = 'Certificate, order, invoice and packing list all say 3,000 kg; the buyer weighed 2,950 kg (1.7%, within tolerance). This handoff passes.';
+      btn.textContent = 'Show the error again';
+      btn.classList.add('ghost');
+    } else {
+      pl.textContent = '3,180 kg';
+      pl.classList.add('bad');
+      pl.classList.remove('ok-flash');
+      verdict.className = 'pill bad';
+      verdict.textContent = 'Gap: quantities disagree';
+      explain.textContent = 'The packing list shows 180 kg more than the certificate, 6% over the 2% tolerance. It is gross weight, cones included. The spinner is asked to correct it.';
+      btn.textContent = 'Correct to net weight';
+      btn.classList.remove('ghost');
+    }
+  });
+})();
+</script>
