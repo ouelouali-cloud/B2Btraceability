@@ -1,13 +1,18 @@
 // Every data-entry form. Each entry has `render(db, params)` → { title, intro, body }
-// and `submit(db, values, params)` which mutates db (called inside store.mutate).
+// and `command(values, params)` → [commandName, payload]. Forms never change
+// data themselves: the command layer (engine/commands.js) does, on this device
+// at once and on the server when the command arrives.
 
-import { TIERS, MATERIALS, PROCESS_TYPES, DOC_TYPES, STANDARD, requiredDocs } from './engine/rules.js';
-import { org, lot, transfer, transferPct, transferKgIn, round } from './engine/db.js';
+import { TIERS, MATERIALS, PROCESS_TYPES, DOC_TYPES } from './engine/rules.js';
+import { org, lot, transfer, transferPct, transferKgIn, round, pctDiff } from './engine/db.js';
 import { consumedByTransfer, processBalance } from './engine/checks.js';
 import { lotRemaining } from './engine/ledger.js';
 import { allChecks } from './engine/trace.js';
-import { esc, num, field, input, select } from './ui.js';
-import { actingAs, today, nextId } from './store.js';
+import { esc, num, date, field, input, select } from './ui.js';
+import { actingAs, today } from './store.js';
+import { makeId } from './engine/commands.js';
+import { isSigned } from './engine/declaration.js';
+import { namedSources, collectionPeriod } from './engine/checks.js';
 
 const n = (v) => (v === '' || v === undefined || v === null ? undefined : Number(v));
 const tierOptions = Object.entries(TIERS).filter(([k]) => k !== 'buyer' && k !== 'garment').map(([k, t]) => [k, t.label]);
@@ -34,12 +39,7 @@ export const FORMS = {
         submit: 'Send invitation',
       };
     },
-    submit(db, v) {
-      const id = v.name.toLowerCase().replace(/[^a-z]/g, '').slice(0, 8) + Date.now().toString(36).slice(-3);
-      db.orgs.push({ id, name: v.name.trim(), tier: v.tier, city: v.city, country: (v.country || '').toUpperCase(), email: v.email,
-        status: 'invited', invitedBy: actingAs(), suppliesTo: [v.suppliesTo], sc: null, note: `Invited ${today()}, not joined yet.` });
-      return `Invitation sent to ${v.email}`;
-    },
+    command: (v) => ['org.invite', { id: makeId('O').toLowerCase(), v }],
   },
 
   accept: {
@@ -53,13 +53,7 @@ export const FORMS = {
         submit: 'Accept and continue',
       };
     },
-    submit(db, v, p) {
-      const o = org(db, p.org);
-      o.status = 'active';
-      delete o.note;
-      if (TIERS[o.tier].certRequired && v.number) o.sc = certFrom(v, o);
-      return 'Welcome. Your buyer can now see your data.';
-    },
+    command: (v, p) => ['org.accept', { org: p.org, v }],
   },
 
   certificate: {
@@ -67,7 +61,7 @@ export const FORMS = {
       const o = org(db, p.org);
       return { title: 'Scope certificate', intro: 'Update when your certificate is renewed or its scope changes.', body: certFields(o), submit: 'Save certificate' };
     },
-    submit(db, v, p) { const o = org(db, p.org); o.sc = certFrom(v, o); return 'Certificate saved'; },
+    command: (v, p) => ['certificate.save', { org: p.org, v }],
   },
 
   doc: {
@@ -93,15 +87,7 @@ export const FORMS = {
         submit: 'Save document',
       };
     },
-    submit(db, v, p) {
-      const t = transfer(db, p.transfer);
-      const d = { number: v.number.trim(), date: v.date, seller: v.seller.trim(), buyer: v.buyer.trim(), qty: n(v.qty) };
-      if (v.recycledPct !== undefined) d.recycledPct = n(v.recycledPct);
-      if (v.file) d.file = v.file;
-      if (p.doc === 'TC') t.tc = { standard: STANDARD, ...t.tc, ...d };
-      else t.docs = { ...t.docs, [p.doc]: { ...t.docs?.[p.doc], ...d } };
-      return 'Document saved';
-    },
+    command: (v, p) => ['doc.save', { transfer: p.transfer, doc: p.doc, v }],
   },
 
   received: {
@@ -111,7 +97,7 @@ export const FORMS = {
       return { title: `Goods received for ${t.id}`, intro: 'Weight or count at your gate, before processing.',
         body: field('receivedQty', `Received (${l.unit})`, input('receivedQty', t.receivedQty ?? t.qty, 'number', 'step="any" required')), submit: 'Save' };
     },
-    submit(db, v, p) { transfer(db, p.transfer).receivedQty = n(v.receivedQty); return 'Receipt saved'; },
+    command: (v, p) => ['receipt.save', { transfer: p.transfer, v }],
   },
 
   shipment: {
@@ -139,24 +125,7 @@ export const FORMS = {
         submit: 'Record shipment',
       };
     },
-    submit(db, v) {
-      const me = org(db, actingAs());
-      const buyer = org(db, v.toOrg);
-      const l = lot(db, v.lotId);
-      const qty = n(v.qty);
-      const base = { date: v.date, seller: me.name, buyer: buyer.name };
-      const docs = {};
-      if (v.poNumber) docs.PO = { ...base, number: v.poNumber, qty, recycledPct: l.recycledPct };
-      if (v.invNumber) docs.INVOICE = { ...base, number: v.invNumber, qty };
-      if (v.plNumber) docs.PACKING = { ...base, number: v.plNumber, qty: n(v.plQty) ?? qty };
-      if (v.blNumber) docs.BL = { ...base, number: v.blNumber, qty };
-      const id = nextId('T', db.transfers);
-      db.transfers.push({ id, fromOrg: me.id, toOrg: buyer.id, lotId: l.id, date: v.date, qty,
-        tc: v.tcNumber ? { number: v.tcNumber, date: v.tcDate || v.date, standard: STANDARD, seller: me.name, buyer: buyer.name, qty, recycledPct: l.recycledPct } : null,
-        docs });
-      const missing = requiredDocs(me, buyer).filter((d) => !docs[d]);
-      return `Shipment ${id} recorded${missing.length ? `. Still missing: ${missing.map((d) => DOC_TYPES[d].label.toLowerCase()).join(', ')}` : ''}`;
-    },
+    command: (v) => ['shipment.record', { id: makeId('T'), v }],
   },
 
   production: {
@@ -181,31 +150,14 @@ export const FORMS = {
             ? `<div class="field-row">${field('outQty', 'Pieces produced', input('outQty', '', 'number', 'step="1" required'))}${field('kgPerUnit', 'Garment weight (kg/pc)', input('kgPerUnit', '0.165', 'number', 'step="any"'))}</div>
                <div class="field-row">${field('kgPerPc', 'Fabric consumption (kg/pc, from marker)', input('kgPerPc', '0.19', 'number', 'step="any"'))}${field('marker', 'Marker reference', input('marker', ''))}</div>`
             : field('outQty', 'Output (kg)', input('outQty', '', 'number', 'step="any" required')),
+          me.tier === 'recycler' ? field('rejectsKg', 'Sorting rejects (kg)', input('rejectsKg', '', 'number', 'step="any" min="0"'), 'Pieces removed before shredding: elastane, prints, polyester. Part of the loss.') : '',
           field('spec', 'Output description', input('spec', '', 'text', `placeholder="${esc(MATERIALS[material].label)}"`)),
           field('records', 'Production records', input('records', ''), 'Comma-separated references, e.g. blend sheet, batch cards'),
         ].join(''),
         submit: 'Record production',
       };
     },
-    submit(db, v) {
-      const me = org(db, actingAs());
-      const inputs = Object.entries(v).filter(([k, val]) => k.startsWith('in_') && n(val) > 0).map(([k, val]) => ({ transferId: k.slice(3), kg: n(val) }));
-      if (!inputs.length) throw new Error('Enter the kg used from at least one received shipment.');
-      const nonClaimed = n(v.otherKg) > 0 ? [{ material: 'virgin-cotton-fibre', kg: n(v.otherKg), note: v.otherNote }] : [];
-      const recIn = inputs.reduce((s, i) => s + i.kg * transferPct(db, transfer(db, i.transferId)) / 100, 0);
-      const inKg = inputs.reduce((s, i) => s + i.kg, 0) + nonClaimed.reduce((s, i) => s + i.kg, 0);
-      const pid = nextId('P', db.processes);
-      const lid = `L-${pid}`;
-      const garment = me.tier === 'garment';
-      const firstLot = lot(db, transfer(db, inputs[0].transferId).lotId);
-      db.lots.push({ id: lid, orgId: me.id, material: v.material, qty: n(v.outQty), unit: garment ? 'pcs' : 'kg',
-        kgPerUnit: garment ? n(v.kgPerUnit) : undefined, recycledPct: Math.floor((recIn / inKg) * 1000) / 10,
-        recycledType: firstLot.recycledType, producedBy: pid, createdAt: v.date, spec: v.spec || undefined });
-      db.processes.push({ id: pid, orgId: me.id, type: v.type, date: v.date, inputs, nonClaimed, outputLotId: lid,
-        consumption: garment ? { kgPerPc: n(v.kgPerPc), marker: v.marker } : undefined,
-        records: v.records ? v.records.split(',').map((s) => s.trim()).filter(Boolean) : [] });
-      return `Production ${pid} recorded; output lot ${lid}`;
-    },
+    command: (v) => { const id = makeId('P'); return ['production.record', { id, lotId: `L-${id}`, v }]; },
   },
 
   process: {
@@ -226,14 +178,59 @@ export const FORMS = {
         submit: 'Save correction',
       };
     },
-    submit(db, v, p) {
-      const pr = db.processes.find((x) => x.id === p.process);
-      const out = lot(db, pr.outputLotId);
-      out.qty = n(v.outQty);
-      out.recycledPct = n(v.recycledPct);
-      if (pr.type === 'cut_sew') { pr.consumption = { ...pr.consumption, kgPerPc: n(v.kgPerPc) }; out.kgPerUnit = n(v.kgPerUnit); }
-      pr.records = v.records.split(',').map((s) => s.trim()).filter(Boolean);
-      return `${pr.id} corrected`;
+    command: (v, p) => ['production.correct', { process: p.process, v }],
+  },
+
+  goodsin: {
+    render(db, p) {
+      const l = lot(db, p.lot);
+      const o = l.origin;
+      const d = o.declaration || {};
+      const seller = org(db, l.orgId);
+      const signed = isSigned(l);
+      const [from, to] = collectionPeriod(l);
+      return {
+        title: `Goods-in: ${l.id} from ${seller.name}`,
+        intro: 'Weigh the delivery at your gate and compare it with the trader’s declaration. Your record creates this handoff in the chain.',
+        body: [
+          `<div class="decl-card">
+            <p><strong>${num(l.qty)} kg</strong> declared · ${num(o.bags)} bags · slip ${esc(o.slipNumber || '—')}</p>
+            <p class="muted small">${namedSources(l).map((s) => `${esc(s.name)} ${num(s.kg)} kg`).join(' · ') || 'No sources listed'}</p>
+            <p class="muted small">${esc([o.colourSort, o.fibre, l.recycledType].filter(Boolean).join(' · '))}${from ? ` · collected ${date(from)} to ${date(to)}` : ''}</p>
+            <p class="small">${signed ? `Declaration <span class="mono">${esc(d.number)}</span> signed by ${esc(d.signer)} on ${date(d.signedOn)}` : '<strong>Declaration not signed yet.</strong> You can record the weight now and countersign later.'}</p>
+          </div>`,
+          `<div class="field-row">${field('date', 'Date received', input('date', today(), 'date'))}${field('receivedQty', 'Weight at your gate (kg)', input('receivedQty', '', 'number', 'step="any" required inputmode="decimal"'), 'Net of bags')}</div>`,
+          `<div class="field-row">${field('gateSlip', 'Your weighbridge slip', input('gateSlip', ''))}${field('moisturePct', 'Moisture (%)', input('moisturePct', '', 'number', 'step="any" min="0" max="30"'), 'Explains small weight differences')}</div>`,
+          `<div class="field-row">${field('poNumber', 'Your purchase order', input('poNumber', '', 'text', 'required'))}${field('invoiceNumber', 'Seller’s invoice or cash memo', input('invoiceNumber', '', 'text', 'required'))}</div>`,
+          signed ? `<label class="check-field"><input type="checkbox" id="countersign" name="countersign" checked> I checked this delivery against declaration ${esc(d.number)}: sources, weight and sort match.</label>` : '',
+        ].join(''),
+        submit: 'Record goods-in',
+      };
+    },
+    command: (v, p) => ['goodsin.record', { id: makeId('T'), lot: p.lot, v }],
+  },
+
+  countersign: {
+    render(db, p) {
+      const t = transfer(db, p.transfer);
+      const l = lot(db, t.lotId);
+      const d = l.origin.declaration;
+      const diffPct = pctDiff(t.receivedQty ?? t.qty, l.qty);
+      return {
+        title: `Countersign declaration ${d.number}`,
+        intro: `You received ${esc(l.id)} on ${date(t.date)}. Confirm the delivery matched what ${esc(org(db, l.orgId).name)} declared.`,
+        body: [
+          `<div class="decl-card"><p>Declared <strong>${num(l.qty)} kg</strong> · at your gate <strong>${num(t.receivedQty)} kg</strong> (${num(diffPct, 1)}% difference${t.goodsIn?.moisturePct ? `, moisture ${t.goodsIn.moisturePct}%` : ''})</p>
+            <p class="muted small">${namedSources(l).map((s) => `${esc(s.name)} ${num(s.kg)} kg`).join(' · ')}</p>
+            <p class="small">Signed by ${esc(d.signer)} on ${date(d.signedOn)}</p></div>`,
+          '<label class="check-field"><input type="checkbox" id="confirm" name="confirm"> Sources, weight and sort match this declaration.</label>',
+        ].join(''),
+        submit: 'Countersign',
+      };
+    },
+    command: (v, p) => {
+      if (v.confirm !== 'on') throw new Error('Tick the box to confirm you checked the delivery.');
+      return ['receipt.countersign', { transfer: p.transfer }];
     },
   },
 
@@ -251,13 +248,7 @@ export const FORMS = {
         submit: `Send to ${esc(o.name)}`,
       };
     },
-    submit(db, v, p) {
-      const c = allChecks(db).find((x) => x.key === p.key);
-      const id = nextId('G', db.gaps);
-      db.gaps.push({ id, key: c.key, owner: c.owner, raisedBy: actingAs(), raisedAt: today(), status: 'open', title: c.title,
-        thread: [{ by: actingAs(), at: today(), text: v.message }] });
-      return `Gap ${id} sent to ${org(db, c.owner).name}`;
-    },
+    command: (v, p) => ['gap.raise', { id: makeId('G'), key: p.key, v }],
   },
 };
 
@@ -272,6 +263,7 @@ function defaultAsk(c) {
     sc: 'Your scope certificate did not cover this shipment date. Please share the renewed certificate.',
     tc: 'Please upload the transaction certificate for this shipment.',
     docs: 'Please upload the missing documents for this shipment.',
+    countersign: 'Please confirm the delivery against the signed declaration at goods-in.',
   };
   return asks[c.id] || `Please check: ${c.detail}`;
 }
@@ -286,7 +278,4 @@ function certFields(o) {
   ].join('');
 }
 
-function certFrom(v, o) {
-  return { number: v.number.trim(), standard: STANDARD, body: v.body, validFrom: v.validFrom, validTo: v.validTo, scope: [materialFor(o.tier)] };
-}
 

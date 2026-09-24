@@ -61,6 +61,21 @@ export function checkTransfer(db, t) {
     }
   }
 
+  // -- Verify: the recycler countersigns the waste source's declaration at goods-in
+  if (seller.tier === 'waste') {
+    const d = l.origin?.declaration || {};
+    const signed = d.signedOn && (d.signature || d.paperPhoto) && !originMissing(l).length;
+    const cs = t.countersign;
+    const cc = c('countersign', 'verify', 'Declaration countersigned at goods-in',
+      !signed ? 'na' : !cs ? 'fail' : cs.signedOn !== d.signedOn ? 'fail' : 'pass',
+      !signed ? `Waiting for ${seller.name} to sign the declaration for ${l.id}.`
+        : !cs ? `${buyer.name} has not confirmed the delivery against declaration ${d.number}.`
+          : cs.signedOn !== d.signedOn ? `The declaration was re-signed after ${cs.by} countersigned it. Countersign again.`
+            : `${cs.by} (${buyer.name}) checked the delivery against ${d.number} on ${cs.at}.`);
+    cc.owner = buyer.id;
+    out.push(cc);
+  }
+
   // -- Verify: documents present
   const needed = requiredDocs(seller, buyer);
   const missing = needed.filter((d) => !docs[d] || !docs[d].number);

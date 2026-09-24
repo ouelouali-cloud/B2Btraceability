@@ -6,13 +6,13 @@ The design takes cues from TrusTrace and TextileGenesis. From TrusTrace it takes
 
 ## Data model
 
-Everything is one plain JSON object (`app/js/seed.js`). It maps one-to-one to relational tables when a backend is added.
+The state is one plain JSON object with six collections (`orgs`, `lots`, `transfers`, `processes`, `claims`, `gaps`). It is never stored directly. The server stores the **ledger** (SQLite table `entries`: seq, time, company, user, command, command id, summary, changed records, previous hash, hash) and rebuilds the state by replaying it. Users, sessions and invitations sit in their own tables. See [CONCEPT.md](CONCEPT.md).
 
 | Entity | Key fields | Notes |
 |---|---|---|
 | `org` | tier, country, status (`invited`/`active`), invitedBy, suppliesTo, `sc` {number, standard, body, validFrom, validTo, scope[]} | Scope certificate is embedded; one per org for now |
 | `lot` | orgId, material, qty, unit (`kg`/`pcs`), kgPerUnit, fibreKgPerUnit, recycledPct, recycledType, producedBy, `origin`, `product` | `origin` only on waste lots: slip number and photo, bags, sources[{name, kind, city, kg, collectedOn}], colour and fibre sort, contamination checks, declaration {signer, role, signature, paperPhoto, signedOn, number}. `product` only on garment lots: spec, sizes, BOM, colourway, photo |
-| `transfer` | fromOrg, toOrg, lotId, date, qty, receivedQty, `tc`, `docs` {PO, INVOICE, PACKING, BL} | The handoff. Each document stores the values *as printed* so they can be cross-checked |
+| `transfer` | fromOrg, toOrg, lotId, date, qty, receivedQty, `tc`, `docs` {PO, INVOICE, PACKING, BL}, `goodsIn` {gate slip, moisture %}, `countersign` {by, at, declaration, signedOn} | The handoff. Each document stores the values *as printed* so they can be cross-checked. For waste, the recycler creates the transfer at goods-in |
 | `process` | orgId, type, inputs[{transferId, kg}], nonClaimed[{material, kg}], outputLotId, consumption, records[] | Inputs point at receipts, so over-consumption is detectable |
 | `claim` | lotId, buyer, pcs, recycledPct, text | The outgoing recycled content claim |
 | `gap` | key (`subjectId:checkId`), owner, raisedBy, status, thread[] | Linked to a check by key and closed automatically when the check passes |
@@ -25,6 +25,7 @@ Checks are **never stored**. They are recomputed from the data on every change, 
 |---|---|---|---|
 | Origin | Reclaimed material declaration | Slip number, sources with kg and date, colour and fibre sort, no elastane or prints, pre/post-consumer, signed | Waste source |
 | Origin | Every kg traced to a factory | Sum of source kg = batch weight, ±2% | Waste source |
+| Verify | Declaration countersigned at goods-in | Recycler confirmed the delivery against the signed declaration; void if the declaration is re-signed | Recycler |
 | Verify | Transaction certificate | Present for certified tiers, not dated before shipment | Seller |
 | Verify | Scope certificate valid | SC covers the shipment date | Seller |
 | Verify | Product in scope | Lot material listed on SC | Seller |
@@ -50,18 +51,21 @@ All tolerances live in `app/js/engine/rules.js`.
 5. **Keep units honest.** Record gross versus net weight, moisture, and cones explicitly. In the demo, the T3 gap is a gross-weight packing list, which is the most common false alarm in yarn.
 6. **Plan for the loop.** Sonar's cutting room produces ~280 kg of jhut from this order. Recording it as a new waste lot would make the manufacturer the waste source of the next chain.
 
-## Roadmap after the prototype
+## Roadmap
 
-1. Backend: Postgres with the tables above, per-organisation row-level access, append-only event log (the ledger must be immutable; corrections are new entries).
-2. Real invitations: email magic links, supplier onboarding, and uploading SC and TC PDFs with OCR of number, dates, quantities.
-3. TC authenticity: check TC numbers against Textile Exchange's TC database / certification body registers.
-4. Multiple inputs and outputs per production run, partial lots, lot splitting and merging, metres ↔ kg for woven fabric.
-5. Claims module: several claims per lot, per-buyer claim documents, export an audit pack (all docs + ledger) per claim.
-6. Post-consumer waste (sorted used garments), which needs a different origin declaration.
+Done: backend with SQLite and a hash-linked ledger; accounts, sessions and invitation links; permissions and visibility enforced on the server; live updates; offline waste form with outbox; recycler goods-in and countersigning.
+
+Next:
+1. Email and SMS delivery of invitations and gap notifications (links already work).
+2. File storage for document scans (today only photos resized on the phone are kept, inside the record).
+3. Reading TC and invoice scans automatically (OCR) and checking TC numbers against Textile Exchange's database.
+4. Multiple inputs and outputs per production run, lot splitting and merging, metres ↔ kg for woven fabric.
+5. An audit pack per claim: all documents, the ledger lines and the hash-chain proof, exported for the certification body.
+6. Postgres and multi-tenant hosting once more than one manufacturer uses it (the engine does not change).
 
 ## Open questions for you
 
 - Who pays? Manufacturer seat licence, or per claim/audit pack?
 - Decided: GRS only; knitted fabric only for now.
-- Should the waste trader's form also work offline (godowns often have poor signal) and sync later?
-- Should the recycler countersign each declaration on receipt, to confirm the weight matches its weighbridge?
+- Decided: the waste form works offline; the recycler countersigns each declaration at goods-in.
+- Hosting: where should the first pilot run (Bangladesh-hosted, EU-hosted)? This matters for data residency.

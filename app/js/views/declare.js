@@ -5,29 +5,14 @@
 import { WASTE_KINDS, COLOUR_SORTS, FIBRE_SORTS, RULES } from '../engine/rules.js';
 import { org, lot, pctDiff } from '../engine/db.js';
 import { namedSources, sourcedKg, collectionPeriod, originMissing } from '../engine/checks.js';
+import { STEPS, stepDone, firstOpenStep, isSigned } from '../engine/declaration.js';
+import { syncStatus } from '../store.js';
+
+export { STEPS, stepDone };
 import { esc, num, date, icon } from '../ui.js';
 import { backLink } from './common.js';
 
-export const STEPS = [
-  { id: 'batch', label: 'Batch', bn: 'বস্তা ও ওজন' },
-  { id: 'sources', label: 'Sources', bn: 'উৎস কারখানা' },
-  { id: 'sort', label: 'Sort', bn: 'রং ও তন্তু' },
-  { id: 'declare', label: 'Sign', bn: 'ঘোষণা ও স্বাক্ষর' },
-];
-
-const KNOWN_FACTORIES = ['Anwar Knit Composite', 'Fatullah Garments', 'Siddhirganj Knitwear', 'Sonar Apparel Ltd (cutting room)', 'Hossain Knit Wear'];
-
-export function stepDone(l, id) {
-  const o = l.origin || {};
-  const src = namedSources(l);
-  if (id === 'batch') return l.qty > 0 && !!o.slipNumber;
-  if (id === 'sources') return src.length > 0 && src.every((s) => s.kg > 0 && s.collectedOn) && pctDiff(sourcedKg(l), l.qty) <= RULES.qtyTolerancePct;
-  if (id === 'sort') return !!(o.colourSort && o.fibre && l.recycledType && o.contamination?.noElastane && o.contamination?.noPrint);
-  if (id === 'declare') return !!(o.declaration?.signedOn && (o.declaration.signature || o.declaration.paperPhoto));
-  return false;
-}
-
-export const firstOpenStep = (l) => (STEPS.find((s) => !stepDone(l, s.id)) || STEPS[STEPS.length - 1]).id;
+const KNOWN_FACTORIES = ['Anwar Knit Composite', 'Fatullah Garments', 'Siddhirganj Knitwear', 'Hossain Knit Wear', 'Sonar Apparel Ltd (cutting room)'];
 
 const lbl = (forId, en, bn, hint = '') => `<label class="wz-label" for="${forId}"><span>${esc(en)}</span><span class="bn" lang="bn">${esc(bn)}</span></label>${hint ? `<p class="wz-hint">${esc(hint)}</p>` : ''}`;
 
@@ -160,18 +145,23 @@ function summary(db, l) {
 export function declare(db, lotId, step, editable) {
   const l = lot(db, lotId);
   if (!l || !l.origin) return '<p class="empty">No waste batch with that reference.</p>';
-  const signed = stepDone(l, 'declare') && !originMissing(l).length;
+  const signed = isSigned(l);
+  const sync = syncStatus();
+  const offlineNote = sync.status === 'offline'
+    ? `<div class="wz-offline" role="status"><strong>You are offline.</strong> Everything you enter is saved on this phone${sync.pending ? ` (${sync.pending} ${sync.pending === 1 ? 'change' : 'changes'} waiting)` : ''} and sent when you are back online.</div>`
+    : sync.pending ? `<div class="wz-offline wz-sending" role="status">Sending ${sync.pending} saved ${sync.pending === 1 ? 'change' : 'changes'}…</div>` : '';
   if (signed && step !== 'edit' && !STEPS.some((s) => s.id === step)) {
     return `${backLink('#tasks', 'My batches')}
       <header class="page-head"><div><p class="eyebrow">Waste declaration · ${esc(l.id)}</p><h1>${num(l.qty)} kg ${esc(l.spec || 'cotton cutting waste')}</h1></div>
       ${editable ? `<div class="head-actions"><button type="button" class="btn" data-action="wiz-step" data-step="batch">Edit batch</button></div>` : ''}</header>
-      ${summary(db, l)}`;
+      ${offlineNote}${summary(db, l)}`;
   }
   const cur = STEPS.some((s) => s.id === step) ? step : firstOpenStep(l);
   const idx = STEPS.findIndex((s) => s.id === cur);
   const body = { batch: stepBatch, sources: stepSources, sort: stepSort, declare: (x) => stepDeclare(db, x) }[cur](l);
   return `${backLink('#tasks', 'My batches')}
     <div class="wizard">
+      ${offlineNote}
       <header class="wz-head">
         <p class="eyebrow">Waste declaration · ${esc(l.id)}</p>
         <h1>${esc(STEPS[idx].label)} <span class="bn" lang="bn">${esc(STEPS[idx].bn)}</span></h1>
@@ -182,66 +172,10 @@ export function declare(db, lotId, step, editable) {
       <form id="wizard" class="wz-body" data-lot="${esc(l.id)}" data-step="${cur}" novalidate>
         <fieldset ${editable ? '' : 'disabled'} class="wz-fields">${body}</fieldset>
         <p class="form-error" id="wz-error" hidden></p>
-        ${editable ? `<footer class="wz-foot">
+        ${editable ? `<footer class="wz-foot ${cur === 'declare' ? 'wz-foot-static' : ''}">
           ${idx > 0 ? `<button type="button" class="btn wz-back" data-action="wiz-back">Back</button>` : '<span></span>'}
           ${cur === 'declare' ? `<button type="submit" class="btn btn-primary wz-next">Sign and send</button>` : `<button type="submit" class="btn btn-primary wz-next">Save and continue</button>`}
         </footer>` : ''}
       </form>
     </div>`;
-}
-
-// Apply one step's form values to the lot. Returns an error string to show, or ''.
-export function applyStep(db, lotId, step, v, today) {
-  const l = lot(db, lotId);
-  const o = l.origin;
-  const before = JSON.stringify([l.qty, l.recycledType, { ...o, declaration: undefined }]);
-  if (step === 'batch') {
-    l.qty = Number(v.qty) || 0;
-    l.createdAt = v.createdAt || l.createdAt;
-    o.bags = v.bags === '' ? null : Number(v.bags);
-    o.slipNumber = (v.slipNumber || '').trim();
-    if (v.slipPhoto) o.slipPhoto = v.slipPhoto;
-  }
-  if (step === 'sources') {
-    const idx = [...new Set(Object.keys(v).filter((k) => k.startsWith('src_name_')).map((k) => k.slice(9)))];
-    o.sources = idx.map((i) => ({
-      name: (v[`src_name_${i}`] || '').trim(), kind: v[`src_kind_${i}`], city: (v[`src_city_${i}`] || '').trim(),
-      kg: Number(v[`src_kg_${i}`]) || 0, collectedOn: v[`src_date_${i}`] || '',
-    })).filter((s) => s.name || s.kg);
-  }
-  if (step === 'sort') {
-    o.colourSort = v.colourSort || '';
-    o.fibre = v.fibre || '';
-    l.recycledType = v.recycledType || '';
-    o.contamination = { noElastane: v.noElastane === 'on', noPrint: v.noPrint === 'on' };
-  }
-  const changed = JSON.stringify([l.qty, l.recycledType, { ...o, declaration: undefined }]) !== before;
-  const d = o.declaration || (o.declaration = {});
-  if (changed && d.signedOn) {
-    d.signedOn = '';
-    d.signature = null;
-    d.paperPhoto = null;
-  }
-  if (step === 'declare') {
-    d.signer = (v.signer || '').trim();
-    d.role = (v.role || '').trim();
-    d.signature = v.signature || null;
-    if (v.paperPhoto) d.paperPhoto = v.paperPhoto;
-    const open = originMissing(l).filter(([k]) => !['signer', 'signature'].includes(k));
-    if (open.length) return `Finish the earlier steps first: ${open.map(([, m]) => m.toLowerCase()).join(', ')}.`;
-    if (!d.signer) return 'Type your name before signing.';
-    if (!d.signature && !d.paperPhoto) return 'Sign in the box, or add a photo of the signed paper form.';
-    d.signedOn = today;
-    d.number = d.number || `RMD-${org(db, l.orgId).name.split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase()}-${today.slice(2, 4)}${today.slice(5, 7)}-${l.id.replace(/^L-/, '')}`;
-  }
-  return '';
-}
-
-export function nextStep(step) {
-  const i = STEPS.findIndex((s) => s.id === step);
-  return STEPS[i + 1]?.id || 'summary';
-}
-export function prevStep(step) {
-  const i = STEPS.findIndex((s) => s.id === step);
-  return STEPS[Math.max(0, i - 1)].id;
 }

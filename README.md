@@ -23,42 +23,57 @@ Scope decisions:
 
 Why this niche: the jhut trade is informal and cash-based, so the evidence breaks at the very first handoff. Mechanically recycled cotton is short-fibre and always blended with virgin cotton, so the spinner is where the recycled % is decided. And garment cutting produces new jhut, so the chain can later close into a loop.
 
-## Your three questions, mapped to the product
+## The concept
 
-1. **Origin: where did the material come from?** Each waste batch carries a *reclaimed material declaration*, filled in by the waste trader on a phone in four steps: the batch (weight, bags, a photo of the weighbridge slip), the sources (one card per factory with kg and collection date), the sort (colour, fibre, no elastane, no prints), and a finger signature. Labels are in English and Bangla. Every kg must be traced to a named factory: 4,000 of 5,200 kg is a gap. The recycler, the first certified tier, needs this for every batch it buys.
-2. **Documentation: who handled it?** Every handoff between tiers is a *shipment* with a TC, PO, invoice, packing list (plus B/L if exported) and the buyer's goods-in weight. They are cross-checked line by line against each other.
-3. **Mass balance: how can I prove my claim?** Every organisation has a ledger in kg of recycled content. Receipts add input. Production turns input into credit, minus process loss. Shipments and claims draw credit down, and credit can never go below zero. Inside each tier, yield, blend ratio and (for garments) pieces × fabric consumption must reconcile.
+**Read [docs/CONCEPT.md](docs/CONCEPT.md) first.** In short:
 
-The finished garment has a **product sheet**: a front sketch in its colourway (or an uploaded photo), spec, size breakdown, bill of materials, and the hang-tag claim with the certification body and licence number. Only the fibre carries the claim. Sewing thread and labels are trims, so the ledger credits 158 g of each 165 g tee, not 165 g.
-
-A failing check becomes a **gap**, which is an evidence request sent to the supplier who owns the data. The gap **closes itself** when the corrected data makes the check pass. The claim stays held until every check back to the waste source passes.
+1. **Each company enters what it did.** The waste trader declares each batch on a phone, and the form works offline. The recycler books goods-in, countersigns the declaration, records sorting and shredding, and ships fibre with a TC. The spinner, mill and manufacturer record their receipts, production runs and documents.
+2. **Every entry becomes a line in an append-only, hash-linked ledger.** Nothing is ever overwritten, and any edit to history is detectable.
+3. **The ledger becomes a live material flow:** kg in, out, lost and in stock at every tier, updated on every connected screen as entries land.
+4. **Checks decide the claim.** They cover origin, documents and mass balance. A failing check becomes a gap for the company that owns the data. The claim is released only when every check back to the waste passes.
 
 ## Run it
 
 ```bash
-npm start     # http://localhost:4173, no install needed (Node 18+)
-npm test      # engine tests, node:test
+npm start     # real backend on http://localhost:4173 (Node 22.5+, no npm install)
+npm test      # engine, command and server tests
 ```
 
-Use **Viewing as** in the top bar to switch between the manufacturer and each supplier. **Demo guide** walks through closing the three planted gaps:
+- **Server mode (`npm start`).** It uses SQLite (`data/threadback.db`), accounts with sessions, and live updates over Server-Sent Events. Demo accounts use the password `demo`: sign in as the manufacturer on a laptop and as the waste trader on a phone to watch data flow. `DEMO=0` disables the demo accounts; `PORT` and `DB_FILE` configure the rest.
+- **Offline.** Once opened, the app is cached on the phone. Changes wait in an outbox and are sent in order when the connection returns.
+- **Hosted demo (no server).** The same app runs the ledger inside the browser. Open two tabs as two companies to see live updates, and use *Simulate no connection* to try offline.
 
-- `L-W1`: the waste trader's declaration is incomplete: one factory missing (1,200 kg unaccounted for), a collection date missing, prints not checked, not signed
-- `T3`: the spinner's packing list shows gross weight (cones included): 3,180 kg against a TC of 3,000
-- `P4`: the garment maker booked 14,000 pcs, which needs 2,660 kg of fabric; only 2,590 kg was received
+Planted gaps in the demo data (the **Demo guide** walks through fixing them):
 
-Data lives in the browser's localStorage. **Reset demo** restores it.
+- `L-W1`: the waste trader's declaration is incomplete: one factory missing (1,200 kg unaccounted for), a collection date missing, prints not checked, not signed. Once it is signed, the recycler must countersign it at goods-in.
+- `T3`: the spinner's packing list shows gross weight (cones included): 3,180 kg against a TC of 3,000.
+- `P4`: the garment maker booked 14,000 pcs, which needs 2,660 kg of fabric; only 2,590 kg was received.
+- `L-W2`: a signed batch waiting in the recycler's goods-in queue.
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/login` | `{email, password}` → session token |
+| GET | `/api/state` | Everything the signed-in company may see |
+| POST | `/api/commands` | `{id, name, payload}`: the only way to write. `id` makes retries safe |
+| GET | `/api/ledger` · `/api/ledger/verify` | Ledger entries; hash-chain check |
+| GET | `/api/stream` | Live entries (Server-Sent Events) |
+| GET/POST | `/api/invite/:token` · `/api/join` | Accept an invitation |
 
 ## Layout
 
 ```
+server/            index.js (HTTP, API, live stream) · ledger.js (SQLite, hash chain) · auth.js
 app/
-  index.html, styles.css
-  js/engine/     pure logic, no DOM: rules, checks, ledger, trace (tested in Node)
-  js/views/      manufacturer views, supplier portal, detail pages,
-                 declare.js (waste declaration wizard), product.js (product sheet + sketch)
-  js/forms.js    every data-entry form
-  js/store.js    persistence (swap for an API later)
-  js/seed.js     demo chain with planted gaps
-docs/ARCHITECTURE.md   data model, check catalogue, recommendations, roadmap
-test/engine.test.js
+  js/engine/       pure logic shared by phone and server:
+                   commands, ledgerlog, visibility, flow, checks, ledger, trace, declaration, rules
+  js/store.js      the app's state + offline outbox
+  js/transport.js  talks to the server, or runs the ledger in the browser (hosted demo)
+  js/views/        screens: manufacturer, supplier and recycler portals, waste declaration,
+                   product sheet, material flow, ledger, how it works, sign-in
+  sw.js            offline app shell
+docs/CONCEPT.md    the concept on one page
+docs/ARCHITECTURE.md  data model, check catalogue, roadmap
+test/              engine, commands, server
 ```

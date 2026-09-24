@@ -68,6 +68,11 @@ test('fixing the data closes gaps and releases the claim', () => {
   l(db, 'L-G1').qty = 13500;
   const closed = syncGaps(db, '2026-09-24');
   assert.deepEqual(closed.sort(), ['G1', 'G2']);
+  // Signed, but the recycler has not yet confirmed the delivery against it
+  assert.equal(byId(checkTransfer(db, t(db, 'T1')), 'countersign').status, 'fail');
+  assert.equal(claimStatus(db, db.claims[0]).status, 'held');
+  const d = l(db, 'L-W1').origin.declaration;
+  t(db, 'T1').countersign = { by: 'Kamal Hossain', at: '2026-09-24', declaration: d.number, signedOn: d.signedOn };
   const s = claimStatus(db, db.claims[0]);
   assert.equal(s.status, 'ready');
   assert.equal(s.warn, true); // T2 invoice name variant still to tidy

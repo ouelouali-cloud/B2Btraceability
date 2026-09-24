@@ -6,6 +6,15 @@
 //   T3    the spinner's packing list shows gross weight (cones included)
 //   P4    the garment maker booked more pieces than the fabric supports
 
+// Demo accounts, one per company in the seed chain. Password: demo
+export const DEMO_USERS = [
+  { orgId: 'sonar', email: 'nusrat@sonarapparel.example.com', name: 'Nusrat Jahan', role: 'Sustainability manager' },
+  { orgId: 'waste', email: 'abdur@rahmanjhut.example.com', name: 'Abdur Rahman', role: 'Owner' },
+  { orgId: 'recy', email: 'kamal@greenfibre.example.com', name: 'Kamal Hossain', role: 'Compliance officer' },
+  { orgId: 'spin', email: 'farhana@meghnaspin.example.com', name: 'Farhana Akter', role: 'QA manager' },
+  { orgId: 'mill', email: 'tanvir@dhakaknit.example.com', name: 'Tanvir Ahmed', role: 'Certification lead' },
+];
+
 export function seed() {
   const names = {
     waste: 'Rahman Jhut Traders',
@@ -19,7 +28,7 @@ export function seed() {
     ({ number, date, seller: names[from], buyer: names[to], qty, ...extra });
 
   return {
-    version: 2,
+    version: 3,
     tenantId: 'sonar',
     orgs: [
       { id: 'waste', name: names.waste, tier: 'waste', city: 'Narayanganj', country: 'BD',
@@ -55,6 +64,18 @@ export function seed() {
           contamination: { noElastane: true, noPrint: false },
           declaration: { signer: '', role: '', signature: null, paperPhoto: null, signedOn: '', number: '' },
         } },
+      { id: 'L-W2', orgId: 'waste', material: 'cotton-cutting-waste', qty: 3800, unit: 'kg', recycledPct: 100,
+        recycledType: 'pre-consumer', createdAt: '2026-09-19', spec: 'Cotton jersey cutting waste',
+        origin: {
+          slipNumber: 'WB-8114', bags: 76, slipPhoto: null,
+          sources: [
+            { name: 'Anwar Knit Composite', kind: 'Cutting waste', city: 'Narayanganj', kg: 2100, collectedOn: '2026-09-09' },
+            { name: 'Hossain Knit Wear', kind: 'Cutting waste', city: 'Narayanganj', kg: 1700, collectedOn: '2026-09-15' },
+          ],
+          colourSort: 'White / ecru', fibre: '100% cotton',
+          contamination: { noElastane: true, noPrint: true },
+          declaration: { signer: 'Abdur Rahman', role: 'Owner', signature: null, paperPhoto: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120"><rect width="160" height="120" fill="#fbf8f0"/><g stroke="#8a8474" stroke-width="2"><path d="M16 22h128M16 36h110M16 50h120M16 64h96"/></g><path d="M24 96c14-20 24 10 36-6s18 8 30-4 16 6 28-2" fill="none" stroke="#1d2b4f" stroke-width="2.5"/></svg>'), signedOn: '2026-09-20', number: 'RMD-RJT-2609-W2' },
+        } },
       { id: 'L-F1', orgId: 'recy', material: 'recycled-cotton-fibre', qty: 4380, unit: 'kg', recycledPct: 100,
         recycledType: 'pre-consumer', producedBy: 'P1', createdAt: '2026-07-08' },
       { id: 'L-Y1', orgId: 'spin', material: 'oe-yarn-rco', qty: 8600, unit: 'kg', recycledPct: 40,
@@ -87,6 +108,7 @@ export function seed() {
     transfers: [
       { id: 'T1', fromOrg: 'waste', toOrg: 'recy', lotId: 'L-W1', date: '2026-07-02', qty: 5200, receivedQty: 5150,
         tc: null,
+        goodsIn: { slipNumber: 'GF-GATE-0702-3', moisturePct: 7.5, by: 'Kamal Hossain', note: '' }, countersign: null,
         docs: {
           PO: doc('GF-PO-219', '2026-06-25', 'waste', 'recy', 5200, { recycledPct: 100 }),
           INVOICE: doc('RJT-0412', '2026-07-02', 'waste', 'recy', 5200),

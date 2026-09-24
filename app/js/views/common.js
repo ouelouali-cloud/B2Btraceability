@@ -20,6 +20,7 @@ export function checkActions(db, c) {
 
 export function fixButton(c) {
   const s = c.subject;
+  if (c.id === 'countersign') return btn('Countersign declaration', 'form', { form: 'countersign', transfer: s }, 'btn-small btn-primary');
   if (c.group === 'origin') return `<a class="btn btn-small btn-primary" href="#declare.${esc(s)}">Complete declaration</a>`;
   if (['consumption', 'blend', 'yield', 'records', 'inputs'].includes(c.id)) return btn('Correct production record', 'form', { form: 'process', process: s }, 'btn-small btn-primary');
   if (['sc', 'scope'].includes(c.id)) return btn('Update certificate', 'form', { form: 'certificate', org: c.owner }, 'btn-small btn-primary');
@@ -37,8 +38,8 @@ export function checkList(db, checks, groups = true) {
 }
 
 export function gapCard(db, g, { compact = false } = {}) {
-  const owner = org(db, g.owner);
-  const who = (id) => (id === 'system' ? 'Threadback' : org(db, id)?.name || id);
+  const owner = org(db, g.owner) || { name: 'supplier' };
+  const who = (id) => (id === 'system' ? 'Threadback' : org(db, id)?.name || 'Another company');
   const canReply = g.status === 'open' && (actingAs() === g.owner || actingAs() === g.raisedBy || isTenant());
   const subject = g.key.split(':')[0];
   const href = subject.startsWith('T') ? `#handoff.${subject}` : subject.startsWith('P') ? `#process.${subject}`
