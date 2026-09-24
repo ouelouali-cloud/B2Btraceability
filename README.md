@@ -25,7 +25,9 @@ Why this niche: the jhut trade is informal and cash-based, so the evidence break
 
 ## The concept
 
-**Read [docs/CONCEPT.md](docs/CONCEPT.md) first.** In short:
+**Read [docs/CONCEPT.md](docs/CONCEPT.md) first.** Also in `docs/`: [GO-TO-MARKET.md](docs/GO-TO-MARKET.md) (who buys it, where to host the pilot), [USER-GUIDE.md](docs/USER-GUIDE.md) (each role, and every document each tier supplies), [ARCHITECTURE.md](docs/ARCHITECTURE.md) (data model, checks, roadmap), and `handbook.html` (all of it on one page).
+
+In short:
 
 1. **Each company enters what it did.** The waste trader declares each batch on a phone, and the form works offline. The recycler books goods-in, countersigns the declaration, records sorting and shredding, and ships fibre with a TC. The spinner, mill and manufacturer record their receipts, production runs and documents.
 2. **Every entry becomes a line in an append-only, hash-linked ledger.** Nothing is ever overwritten, and any edit to history is detectable.

@@ -1,0 +1,352 @@
+<title>Threadback Handbook</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --ground: #f5f6f3; --surface: #ffffff; --surface-2: #eef1ec;
+  --ink: #1c2420; --muted: #5d6a63; --line: #dde3dd; --line-strong: #c3ccc5;
+  --mat-bg: #e4f3eb; --mat-line: #93cdb2; --mat-ink: #0f5a40;
+  --chk-bg: #eeedfb; --chk-line: #b3aeea; --chk-ink: #3e368f;
+  --gap-bg: #fbe8e3; --gap-line: #e5a391; --gap-ink: #8b2b16;
+  --warn-bg: #fbf0d9; --warn-line: #e3c178; --warn-ink: #6f4b00;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cond: 'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #121614; --surface: #1a201d; --surface-2: #222a26;
+    --ink: #e4ebe6; --muted: #9aa8a0; --line: #2d3632; --line-strong: #3d4943;
+    --mat-bg: #17302a; --mat-line: #2f7a5a; --mat-ink: #8fdcb8;
+    --chk-bg: #25224a; --chk-line: #5a52b0; --chk-ink: #c3bdf7;
+    --gap-bg: #3a1e17; --gap-line: #9c4a36; --gap-ink: #f4b3a2;
+    --warn-bg: #352a12; --warn-line: #8a6a24; --warn-ink: #f0cf85;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #121614; --surface: #1a201d; --surface-2: #222a26;
+  --ink: #e4ebe6; --muted: #9aa8a0; --line: #2d3632; --line-strong: #3d4943;
+  --mat-bg: #17302a; --mat-line: #2f7a5a; --mat-ink: #8fdcb8;
+  --chk-bg: #25224a; --chk-line: #5a52b0; --chk-ink: #c3bdf7;
+  --gap-bg: #3a1e17; --gap-line: #9c4a36; --gap-ink: #f4b3a2;
+  --warn-bg: #352a12; --warn-line: #8a6a24; --warn-ink: #f0cf85;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font: 400 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--chk-ink); }
+h1, h2, h3 { font-family: var(--cond); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.25; }
+h1 { font-size: 2.2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.1rem; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.2em; display: grid; gap: 4px; }
+.mono { font-family: var(--mono); font-size: 0.9em; }
+.muted { color: var(--muted); }
+.small { font-size: 0.88rem; }
+
+.page { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; display: grid; gap: 2px; font-size: 0.9rem; }
+.toc p { font: 500 0.72rem var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.toc a { color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; }
+.toc a:hover { background: var(--surface-2); color: var(--ink); }
+main { display: grid; gap: 56px; min-width: 0; }
+section { display: grid; gap: 16px; scroll-margin-top: 20px; }
+section > *, .hero > * { min-width: 0; }
+section > p, section > ul, section > ol { max-width: 72ch; }
+.eyebrow { font: 500 0.75rem var(--sans); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.lead { font-size: 1.1rem; max-width: 64ch; }
+.num { font: 600 0.8rem var(--mono); color: var(--muted); margin-right: 8px; }
+
+.hero { display: grid; gap: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.q3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.q3 div { padding: 14px; border-radius: 8px; background: var(--chk-bg); border: 1px solid var(--chk-line); color: var(--chk-ink); display: grid; gap: 2px; }
+.q3 strong { font-family: var(--cond); font-size: 1.05rem; }
+.q3 span { color: var(--ink); font-size: 0.9rem; }
+
+.decision { display: grid; gap: 10px; padding: 20px; border-radius: 10px; background: var(--mat-bg); border: 1px solid var(--mat-line); }
+.decision h3 { color: var(--mat-ink); font-size: 1.25rem; }
+.decision p { max-width: 70ch; }
+.caution { padding: 12px 14px; border-radius: 8px; background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-ink); font-size: 0.92rem; max-width: 76ch; }
+
+.layers { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 10px; }
+.layers li { display: grid; gap: 6px; align-content: start; padding: 16px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+.layers .n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--chk-ink); color: var(--surface); font: 600 0.85rem var(--mono); }
+.layers strong { font-family: var(--cond); font-size: 1.05rem; }
+.layers span { font-size: 0.9rem; color: var(--muted); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+thead th { font: 500 0.72rem var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+tbody tr:last-child > * { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.docs-table { min-width: 860px; }
+.tag { display: inline-block; font: 500 0.72rem var(--sans); padding: 2px 8px; border-radius: 999px; background: var(--chk-bg); color: var(--chk-ink); white-space: nowrap; }
+.tag-none { background: var(--surface-2); color: var(--muted); }
+
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.role { display: grid; gap: 8px; align-content: start; padding: 16px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+.role h3 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.role ol { font-size: 0.92rem; }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+.card { display: grid; gap: 8px; align-content: start; padding: 16px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
+.card-g { background: var(--mat-bg); border-color: var(--mat-line); }
+.card-r { background: var(--gap-bg); border-color: var(--gap-line); }
+.card h3 { font-size: 1rem; }
+.card li, .card p { font-size: 0.92rem; }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+pre { margin: 0; padding: 14px; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font: 0.85rem/1.5 var(--mono); }
+
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); padding: 20px 16px 64px; gap: 24px; }
+  .toc { position: static; display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .toc p { flex-basis: 100%; margin: 0; }
+  .toc a { padding: 4px 8px; background: var(--surface); border: 1px solid var(--line); }
+  h1 { font-size: 1.75rem; }
+}
+</style>
+
+<div class="page">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <a href="#what">What it is</a>
+    <a href="#buyer">Who buys it</a>
+    <a href="#how">How it works</a>
+    <a href="#documents">Documents per tier</a>
+    <a href="#guides">User guides</a>
+    <a href="#checks">Checks</a>
+    <a href="#hosting">Hosting and data</a>
+    <a href="#tech">Technical</a>
+    <a href="#next">Next steps</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="what">
+      <p class="eyebrow">Threadback · handbook · September 2026</p>
+      <h1>A chain-of-custody ledger for recycled cotton, from cutting waste to garment</h1>
+      <p class="lead">Threadback is a shared record of what happened to recycled material, written by the companies that handled it: waste trader, recycler, spinner, fabric mill and garment manufacturer. For every recycled content claim it answers three questions.</p>
+      <div class="q3">
+        <div><strong>Origin</strong><span>Where did the material come from? Every kg traced to a named factory.</span></div>
+        <div><strong>Documentation</strong><span>Who handled it, and do their documents agree at every handoff?</span></div>
+        <div><strong>Mass balance</strong><span>Do the kilograms add up from waste to garment, without double claiming?</span></div>
+      </div>
+      <p class="muted small">Niche for the first version: pre-consumer cotton cutting waste (jhut) in Bangladesh, mechanically recycled, spun at 40% recycled content, knitted into single jersey and sewn into T-shirts for EU buyers. GRS only. Knitted fabric only.</p>
+    </header>
+
+    <section id="buyer">
+      <p class="eyebrow">Business</p>
+      <h2>Who buys it</h2>
+      <p>There are two customers, and they are different people. The <strong>user</strong> is the Bangladeshi garment exporter, which does the daily work of assembling evidence. The <strong>payer at scale</strong> is usually the EU brand, which makes the claim to consumers and carries the legal risk. Every interview so far was in Bangladesh; the EU side is untested.</p>
+      <div class="decision">
+        <h3>Recommendation: pilot with Bangladeshi manufacturers, and use the pilot to test whether their EU buyers pay</h3>
+        <p>Start where your access and evidence are: one or two exporters making recycled-cotton products for EU buyers, each bringing its recycler and waste traders. Their deliverable is the <strong>evidence pack for a claim</strong>: every TC, document, declaration, ledger line and check behind a shipment, ready for the buyer and the certification body. In every pilot, ask for an introduction to the EU buyer of that order and show them the pack and the live chain.</p>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th></th><th>Bangladeshi manufacturer</th><th>EU brand</th></tr></thead>
+        <tbody>
+          <tr><td>Role</td><td>User: collects TCs, chases suppliers, assembles evidence</td><td>Payer: makes the claim, carries the legal risk</td></tr>
+          <tr><td>Pain</td><td>Weak upstream evidence puts orders and certification at risk; manual work</td><td>Claims must be substantiated; weak upstream data is a legal and reputational risk</td></tr>
+          <tr><td>Evidence</td><td>Your interviews</td><td>None yet</td></tr>
+          <tr><td>Budget</td><td>Tight; spent when a buyer requires it</td><td>Compliance budgets; already buys traceability tools</td></tr>
+        </tbody>
+      </table></div>
+      <div class="cols">
+        <div class="card">
+          <h3>EU rules behind the urgency</h3>
+          <ul>
+            <li><strong>Directive (EU) 2024/825</strong> on empowering consumers applies from 27 September 2026: no unsubstantiated environmental claims, and sustainability labels only from certification schemes.</li>
+            <li><strong>Ecodesign Regulation (EU) 2024/1781:</strong> textiles are a priority group; a Digital Product Passport is expected within a few years.</li>
+            <li><strong>Textile producer responsibility</strong> under the revised Waste Framework Directive: fees per product, likely rewarding proven recycled content.</li>
+          </ul>
+          <p class="muted small">Check current status before quoting any of these in a pitch.</p>
+        </div>
+        <div class="card">
+          <h3>Ask at least five EU brands</h3>
+          <ol>
+            <li>What evidence do you get today for "40% recycled cotton"? Who checks it?</li>
+            <li>Has a claim or shipment been held for missing upstream evidence?</li>
+            <li>Which tools do you use, and what do they miss before the spinner?</li>
+            <li>How are you preparing for the 2024/825 claim rules?</li>
+            <li>Would you pay for a verified chain to the waste source: per supplier, per claim, per year? Whose budget?</li>
+            <li>Would you require, or pay for, your suppliers to use it?</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Decide after the pilot</h3>
+          <ul>
+            <li><strong>EU buyers ask for access and pay:</strong> brand pays; suppliers use it free.</li>
+            <li><strong>Buyers value it but won't pay, and exporters win orders with it:</strong> manufacturer pays a low per-factory fee; the evidence pack is the product.</li>
+            <li><strong>Neither pays:</strong> test certification bodies as buyers (faster audits from clean data).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <p class="eyebrow">Concept</p>
+      <h2>How it works</h2>
+      <ol class="layers">
+        <li><span class="n">1</span><strong>Each company enters what it did</strong><span>The waste trader declares each batch on a phone, offline if needed. The recycler books goods-in and countersigns. Spinner, mill and manufacturer record production and documents.</span></li>
+        <li><span class="n">2</span><strong>Every entry is a line in the ledger</strong><span>Lines are only added, never changed. Each line's fingerprint includes the previous one, so editing history is detectable.</span></li>
+        <li><span class="n">3</span><strong>The ledger becomes a live material flow</strong><span>Kg in, out, lost and in stock at every tier, and a mass-balance account per company, updated on every screen as lines land.</span></li>
+        <li><span class="n">4</span><strong>Checks decide the claim</strong><span>A failing check becomes a gap for the company that owns the data and closes itself when fixed. The claim goes out only when every check passes.</span></li>
+      </ol>
+      <p>Suppliers join by invitation from their buyer, and each tier invites the next one up. Each company sees its own records and its direct partners. The manufacturer sees the chain. Nobody sees prices.</p>
+    </section>
+
+    <section id="documents">
+      <p class="eyebrow">Evidence</p>
+      <h2>Documents and figures each tier supplies</h2>
+      <p>This is the complete evidence behind one recycled-cotton claim. Use it as a checklist in supplier interviews.</p>
+      <div class="table-wrap"><table class="docs-table">
+        <thead><tr><th>Tier</th><th>Once</th><th>Per batch or shipment it sells</th><th>Per production run</th></tr></thead>
+        <tbody>
+          <tr><td>Waste trader <span class="tag tag-none">no certificate</span></td><td>Company details</td><td>Weighbridge slip number and photo · bags · each source factory with area, kg and collection date · waste type · colour and fibre sort · free of elastane and prints · pre- or post-consumer · <strong>signed reclaimed material declaration</strong></td><td>—</td></tr>
+          <tr><td>Recycler <span class="tag">GRS</span></td><td>Scope certificate</td><td><strong>Goods-in:</strong> own PO · trader's invoice or cash memo · gate weight and slip · moisture % · <strong>countersignature</strong> of the declaration. <strong>Selling fibre:</strong> TC · PO · invoice · net packing list</td><td>Waste used per goods-in · fibre out · sorting rejects · sorting log, shredder sheet</td></tr>
+          <tr><td>Spinner <span class="tag">GRS</span></td><td>Scope certificate</td><td>TC with recycled % · PO · invoice · <strong>net</strong> packing list · buyer's goods-in weight</td><td>Recycled fibre per receipt · virgin cotton kg · yarn out · blend sheet</td></tr>
+          <tr><td>Fabric mill <span class="tag">GRS</span></td><td>Scope certificate · subcontractors' certificates</td><td>TC · PO · invoice · packing list · buyer's goods-in weight</td><td>Yarn per receipt · fabric out · knitting plan, dye batch cards</td></tr>
+          <tr><td>Manufacturer <span class="tag">GRS</span></td><td>Scope certificate</td><td><strong>To the EU buyer:</strong> TC from its certification body · invoice · packing list · bill of lading</td><td>Fabric per receipt · pieces · fabric per piece (marker) · garment weight · bill of materials · cutting report</td></tr>
+          <tr><td>EU buyer</td><td>—</td><td>Receives the claim, the final TC and the evidence pack</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="guides">
+      <p class="eyebrow">Using it</p>
+      <h2>User guides</h2>
+      <div class="roles">
+        <article class="role"><h3>Garment manufacturer <span class="tag">customer</span></h3>
+          <ol>
+            <li>Invite your fabric mill; each supplier invites the next one up.</li>
+            <li>Watch <em>Material flow</em> fill in live; open <em>Chain</em> for the handoffs behind a claim.</li>
+            <li>Raise gaps on failing checks; they close when the supplier fixes the data.</li>
+            <li>Record cutting: pieces, fabric per piece, garment weight.</li>
+            <li>Release the claim when it shows <em>Ready to release</em>; prove history with <em>Check the chain</em>.</li>
+          </ol></article>
+        <article class="role"><h3>Waste trader <span class="tag">phone · offline</span></h3>
+          <ol>
+            <li>Tap <em>New batch</em> when bagging waste for sale.</li>
+            <li>Batch: weight, bags, slip number, photo of the slip.</li>
+            <li>Sources: one card per factory with kg and date; the total must match.</li>
+            <li>Sort: colour, fibre, no elastane, no prints.</li>
+            <li>Sign with a finger or photograph the paper form. Offline, it is sent later.</li>
+          </ol></article>
+        <article class="role"><h3>Recycler <span class="tag">first certified tier</span></h3>
+          <ol>
+            <li>Open the goods-in queue of declared batches.</li>
+            <li>Record gate weight, moisture, PO and the trader's invoice; countersign if it matches.</li>
+            <li>Record sorting and shredding: waste in, fibre out, rejects.</li>
+            <li>Ship fibre to the spinner with TC and documents.</li>
+          </ol></article>
+        <article class="role"><h3>Spinner and fabric mill</h3>
+          <ol>
+            <li>Check <em>My tasks</em> for requests and failing checks.</li>
+            <li>Record production: inputs per receipt (plus virgin cotton at the spinner) and output.</li>
+            <li>Record shipments with TC, PO, invoice and net packing list.</li>
+            <li>Fix red cells in a shipment's document cross-check.</li>
+          </ol></article>
+      </div>
+    </section>
+
+    <section id="checks">
+      <p class="eyebrow">Rules</p>
+      <h2>Checks</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Group</th><th>Check</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Origin</td><td>Reclaimed material declaration</td><td>Slip, sources with kg and dates, sort, contamination, pre/post-consumer, signed</td></tr>
+          <tr><td>Origin</td><td>Every kg traced to a factory</td><td>Source kg add up to batch weight, ±2%</td></tr>
+          <tr><td>Verify</td><td>Countersigned at goods-in</td><td>Recycler confirmed delivery against the signed declaration; void if re-signed</td></tr>
+          <tr><td>Verify</td><td>Transaction certificate</td><td>Present for certified tiers; not dated before shipment</td></tr>
+          <tr><td>Verify</td><td>Scope certificate</td><td>Valid on the shipment date; product in scope</td></tr>
+          <tr><td>Verify</td><td>Documents, parties, dates</td><td>PO, invoice, packing list (B/L if exported); same names; within 45 days</td></tr>
+          <tr><td>Verify</td><td>Recycled % consistent</td><td>TC = PO = lot, ±0.5 point</td></tr>
+          <tr><td>Reconcile</td><td>Quantities</td><td>TC = invoice = packing list = received, ±2%</td></tr>
+          <tr><td>Reconcile</td><td>Inputs, yield, blend</td><td>Inputs covered by receipts; yield plausible; declared % supported by inputs</td></tr>
+          <tr><td>Reconcile</td><td>Fabric consumption</td><td>Pieces × fabric per piece fits fabric received</td></tr>
+          <tr><td>Claim</td><td>Release</td><td>Stock available; ≥20% recycled (GRS logo ≥50%); within mass-balance credit; every upstream check passes</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="hosting">
+      <p class="eyebrow">Operations</p>
+      <h2>Hosting and data</h2>
+      <div class="decision">
+        <h3>Recommendation: an EU cloud region (Frankfurt or Ireland) for the pilot</h3>
+        <p>The data is mostly business data; the personal data is small (names, emails, signatures). An EU region meets EU buyers' GDPR expectations from day one. Latency from Bangladesh is fine for this app, and the offline-first design covers weak connections. The move is reversible: the whole state is one ledger in one database.</p>
+      </div>
+      <p class="caution">Before the pilot, ask a Bangladeshi lawyer whether the country's data protection law, still being finalised as of my knowledge, requires any data to stay in Bangladesh. If EU brands turn out not to be part of the model, Singapore or Mumbai are equally good.</p>
+    </section>
+
+    <section id="tech">
+      <p class="eyebrow">Technical</p>
+      <h2>How it is built</h2>
+      <div class="cols">
+        <div class="card"><h3>Server</h3><ul>
+          <li>Node 22.5+, zero dependencies, SQLite built in</li>
+          <li>Accounts, sessions, invitation links</li>
+          <li>Visibility enforced on the server</li>
+          <li>Live updates by Server-Sent Events</li>
+        </ul></div>
+        <div class="card"><h3>Ledger</h3><ul>
+          <li>Every write is a command, run on the phone at once and re-checked on the server</li>
+          <li>Each accepted command appends one hash-linked line</li>
+          <li>State is the replay of the lines</li>
+          <li>Command ids make phone retries safe</li>
+        </ul></div>
+        <div class="card"><h3>Offline</h3><ul>
+          <li>App files cached on the phone</li>
+          <li>Changes wait in an outbox, sent in order on reconnect</li>
+          <li>Changes the server refuses are shown, never dropped</li>
+        </ul></div>
+      </div>
+      <pre>npm start   # server on http://localhost:4173, demo password: demo
+npm test    # engine, commands, server</pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /api/login</code></td><td>Email and password → session</td></tr>
+          <tr><td><code>GET /api/state</code></td><td>What the signed-in company may see</td></tr>
+          <tr><td><code>POST /api/commands</code></td><td>The only way to write; <code>{id, name, payload}</code></td></tr>
+          <tr><td><code>GET /api/ledger</code>, <code>/verify</code></td><td>Ledger lines; hash-chain check</td></tr>
+          <tr><td><code>GET /api/stream</code></td><td>Live lines</td></tr>
+          <tr><td><code>/api/invite/:token</code>, <code>/api/join</code></td><td>Accept an invitation</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="next">
+      <p class="eyebrow">Plan</p>
+      <h2>Next steps</h2>
+      <div class="cols">
+        <div class="card card-g"><h3>Built</h3><ul>
+          <li>Chain, checks, gaps, mass balance</li>
+          <li>Waste declaration on phone, offline, Bangla labels</li>
+          <li>Recycler goods-in and countersigning</li>
+          <li>Real backend, hash-linked ledger, live flow</li>
+          <li>Product sheet and GRS claim rules</li>
+        </ul></div>
+        <div class="card"><h3>For the pilot</h3><ol>
+          <li>Evidence pack export per claim</li>
+          <li>Put the server online (EU region)</li>
+          <li>Email and SMS invitations and gap alerts</li>
+          <li>Document scan storage</li>
+          <li>Five EU brand interviews</li>
+        </ol></div>
+        <div class="card card-r"><h3>Open questions</h3><ul>
+          <li>Who pays: brand, manufacturer or certification body?</li>
+          <li>Data residency rules in Bangladesh</li>
+          <li>Which exporters and recyclers join the pilot?</li>
+        </ul></div>
+      </div>
+    </section>
+  </main>
+</div>

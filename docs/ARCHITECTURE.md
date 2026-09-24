@@ -65,7 +65,6 @@ Next:
 
 ## Open questions for you
 
-- Who pays? Manufacturer seat licence, or per claim/audit pack?
 - Decided: GRS only; knitted fabric only for now.
 - Decided: the waste form works offline; the recycler countersigns each declaration at goods-in.
-- Hosting: where should the first pilot run (Bangladesh-hosted, EU-hosted)? This matters for data residency.
+- Who pays, and where the pilot is hosted: see [GO-TO-MARKET.md](GO-TO-MARKET.md).
